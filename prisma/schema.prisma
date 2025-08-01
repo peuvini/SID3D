@@ -1,0 +1,61 @@
+// schema.prisma
+generator client {
+  provider = "prisma-client-py"
+}
+
+datasource db {
+  provider = "postgresql" // Ajuste conforme o banco real (postgresql, mysql, sqlite, etc.)
+  url      = env("DATABASE_URL")
+}
+
+model Professor {
+  Professor_ID Int           @id
+  Nome         String        @db.VarChar(255)
+  Email        String        @unique @db.VarChar(255)
+  Senha        String        @db.VarChar(255)
+
+  Impressoras  Impressora[]
+  DICOMs       DICOM[]
+}
+
+model Impressora {
+  Impressora_ID Int          @id
+  IP            String       @db.VarChar(100)
+  Nome          String       @db.VarChar(150)
+  ID_Professor  Int
+
+  Professor     Professor    @relation(fields: [ID_Professor], references: [Professor_ID])
+  Impressoes    Impressao3D[]
+}
+
+model Impressao3D {
+  Impressao3D_ID Int         @id
+  DataInicio     DateTime
+  DataConclusao  DateTime
+  ID_Arquivo3D   Int
+  ID_Impressora  Int
+
+  Arquivo3D      Arquivo3D   @relation(fields: [ID_Arquivo3D], references: [Arquivo3D_ID])
+  Impressora     Impressora  @relation(fields: [ID_Impressora], references: [Impressora_ID])
+}
+
+model Arquivo3D {
+  Arquivo3D_ID Int           @id
+  Versao       Int
+  URL          String        @db.VarChar(255)
+  ID_DICOM     Int
+
+  DICOM        DICOM         @relation(fields: [ID_DICOM], references: [DICOM_ID])
+  Impressoes   Impressao3D[]
+}
+
+model DICOM {
+  DICOM_ID     Int           @id
+  Nome         String?       @db.VarChar(100)
+  Paciente     String?       @db.VarChar(255)
+  URL          String        @db.VarChar(255)
+  ID_Professor Int
+
+  Professor    Professor     @relation(fields: [ID_Professor], references: [Professor_ID])
+  Arquivos3D   Arquivo3D[]
+}
