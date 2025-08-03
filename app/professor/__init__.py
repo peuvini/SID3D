@@ -1,4 +1,2 @@
-# Pastas
-env/
-__pycache__/
+# Módulo professor
 

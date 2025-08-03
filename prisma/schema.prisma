@@ -1,15 +1,14 @@
-// schema.prisma
 generator client {
   provider = "prisma-client-py"
 }
 
 datasource db {
-  provider = "postgresql" // Ajuste conforme o banco real (postgresql, mysql, sqlite, etc.)
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Professor {
-  Professor_ID Int           @id
+  Professor_ID Int           @id @default(autoincrement())
   Nome         String        @db.VarChar(255)
   Email        String        @unique @db.VarChar(255)
   Senha        String        @db.VarChar(255)
@@ -19,7 +18,7 @@ model Professor {
 }
 
 model Impressora {
-  Impressora_ID Int          @id
+  Impressora_ID Int          @id @default(autoincrement())
   IP            String       @db.VarChar(100)
   Nome          String       @db.VarChar(150)
   ID_Professor  Int
@@ -29,7 +28,7 @@ model Impressora {
 }
 
 model Impressao3D {
-  Impressao3D_ID Int         @id
+  Impressao3D_ID Int         @id @default(autoincrement())
   DataInicio     DateTime
   DataConclusao  DateTime
   ID_Arquivo3D   Int
@@ -40,7 +39,7 @@ model Impressao3D {
 }
 
 model Arquivo3D {
-  Arquivo3D_ID Int           @id
+  Arquivo3D_ID Int           @id @default(autoincrement())
   Versao       Int
   URL          String        @db.VarChar(255)
   ID_DICOM     Int
@@ -50,7 +49,7 @@ model Arquivo3D {
 }
 
 model DICOM {
-  DICOM_ID     Int           @id
+  DICOM_ID     Int           @id @default(autoincrement())
   Nome         String?       @db.VarChar(100)
   Paciente     String?       @db.VarChar(255)
   URL          String        @db.VarChar(255)
