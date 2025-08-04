@@ -1,3 +1,4 @@
 # Pastas
 __pycache__/
 .env
+venv/

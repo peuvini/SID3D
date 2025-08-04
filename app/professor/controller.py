@@ -3,16 +3,19 @@ from .service import ProfessorService
 from .schemas import ProfessorCreate, ProfessorUpdate, ProfessorResponse
 from app.auth.auth_middleware import require_auth, get_current_user
 from app.auth.auth_schemas import UserResponse
+from app.dependencies import get_professor_service
 
 router = APIRouter(prefix="/professor", tags=["Professor"])
 
 
 @router.get("/", response_model=list[ProfessorResponse])
-async def get_professores(current_user: UserResponse = require_auth()):
+async def get_professores(
+    service: ProfessorService = Depends(get_professor_service), 
+    current_user: UserResponse = Depends(get_current_user)
+):
     """Retorna todos os professores (apenas para usuários autenticados)"""
     try:
-        async with ProfessorService() as service:
-            return await service.get_all_professores()
+        return await service.get_all_professores()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -20,15 +23,15 @@ async def get_professores(current_user: UserResponse = require_auth()):
 @router.get("/{professor_id}", response_model=ProfessorResponse)
 async def get_professor_by_id(
     professor_id: int, 
-    current_user: UserResponse = require_auth()
+    service: ProfessorService = Depends(get_professor_service), 
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Retorna um professor específico por ID"""
     try:
-        async with ProfessorService() as service:
-            professor = await service.get_professor_by_id(professor_id)
-            if not professor:
-                raise HTTPException(status_code=404, detail="Professor não encontrado")
-            return professor
+        professor = await service.get_professor_by_id(professor_id)
+        if not professor:
+            raise HTTPException(status_code=404, detail="Professor não encontrado")
+        return professor
     except HTTPException:
         raise
     except Exception as e:
@@ -37,12 +40,13 @@ async def get_professor_by_id(
 
 @router.post("/", response_model=ProfessorResponse)
 async def create_professor(
-    professor: ProfessorCreate
+    professor: ProfessorCreate,
+    service: ProfessorService = Depends(get_professor_service), 
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Cria um novo professor"""
     try:
-        async with ProfessorService() as service:
-            return await service.create_professor(professor)
+        return await service.create_professor(professor)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -53,15 +57,19 @@ async def create_professor(
 async def update_professor(
     professor_id: int,
     professor: ProfessorUpdate,
-    current_user: UserResponse = require_auth()
+    service: ProfessorService = Depends(get_professor_service),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Atualiza um professor existente"""
+    # Verificação de autorização
+    if current_user.professor_id != professor_id:
+         raise HTTPException(status_code=403, detail="Operação não permitida")
+    
     try:
-        async with ProfessorService() as service:
-            updated_professor = await service.update_professor(professor_id, professor)
-            if not updated_professor:
-                raise HTTPException(status_code=404, detail="Professor não encontrado")
-            return updated_professor
+        updated_professor = await service.update_professor(professor_id, professor)
+        if not updated_professor:
+            raise HTTPException(status_code=404, detail="Professor não encontrado")
+        return updated_professor
     except HTTPException:
         raise
     except ValueError as e:
@@ -73,15 +81,20 @@ async def update_professor(
 @router.delete("/{professor_id}")
 async def delete_professor(
     professor_id: int,
-    current_user: UserResponse = require_auth()
+    service: ProfessorService = Depends(get_professor_service),
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Deleta um professor"""
+
+    # Verificação de autorização
+    if current_user.professor_id != professor_id:
+         raise HTTPException(status_code=403, detail="Operação não permitida")
+
     try:
-        async with ProfessorService() as service:
-            success = await service.delete_professor(professor_id)
-            if not success:
-                raise HTTPException(status_code=404, detail="Professor não encontrado")
-            return {"message": "Professor removido com sucesso"}
+        success = await service.delete_professor(professor_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Professor não encontrado")
+        return {"message": "Professor removido com sucesso"}
     except HTTPException:
         raise
     except Exception as e:
