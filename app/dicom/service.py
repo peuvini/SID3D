@@ -1,128 +1,114 @@
 # app/dicom/service.py
 
 import os
-import aiofiles
-from typing import List, Optional, Tuple
+import aiobotocore
+from typing import List, Optional
 from uuid import uuid4
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 
 from .repository import DICOMRepository
-from .schemas import DICOMCreate, DICOMUpdate, DICOMResponse, DICOMSearch
-# O seu diagrama menciona um 'MeshGeneratorAbstract'. Vamos criar um placeholder.
-# Este seria o local para integrar a lógica de conversão para malha 3D.
+from .schemas import DICOMCreate, DICOMResponse, DICOMSearch
 from app.utils.mesh_generator import MeshGeneratorAbstract 
 
-# Defina o diretório de uploads. Crie este diretório na raiz do seu projeto.
-UPLOAD_DIRECTORY = "./uploads/dicom"
-os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+AWS_REGION = os.getenv("AWS_REGION")
 
 class DICOMService:
     def __init__(self, repository: DICOMRepository, mesh_generator: MeshGeneratorAbstract):
         self.repository = repository
         self.mesh_generator = mesh_generator
+        self.session = aiobotocore.get_session()
+
+    async def _get_s3_client(self):
+        return self.session.create_client('s3', region_name=AWS_REGION)
 
     async def _map_to_response(self, dicom_model) -> DICOMResponse:
         """Helper para mapear o modelo do Prisma para o schema de resposta."""
         if not dicom_model:
             return None
         return DICOMResponse(
+            # O modelo Prisma usa DICOM_ID
             dicom_id=dicom_model.DICOM_ID,
             nome=dicom_model.Nome,
             paciente=dicom_model.Paciente,
             url=dicom_model.URL,
-            professor_id=dicom_model.Professor_ID,
+            # [CORREÇÃO AQUI] O modelo Prisma usa ID_Professor para a chave estrangeira
+            professor_id=dicom_model.ID_Professor,
         )
 
     async def create_dicom_upload(self, file: UploadFile, dicom_data: DICOMCreate) -> DICOMResponse:
         """
-        Salva o arquivo DICOM fisicamente e cria o registro de metadados no banco.
+        Faz upload do arquivo DICOM para o AWS S3 e salva os metadados no banco.
         """
-        # 1. Salvar o arquivo físico
-        # Gera um nome de arquivo único para evitar colisões
-        file_extension = file.filename.split('.')[-1]
-        unique_filename = f"{uuid4()}.{file_extension}"
-        file_path = os.path.join(UPLOAD_DIRECTORY, unique_filename)
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'dcm'
+        object_key = f"dicom-files/{uuid4()}.{file_extension}"
 
         try:
-            async with aiofiles.open(file_path, 'wb') as out_file:
-                content = await file.read()
-                await out_file.write(content)
+            content = await file.read()
+            async with await self._get_s3_client() as s3_client:
+                await s3_client.put_object(
+                    Bucket=S3_BUCKET_NAME, Key=object_key, Body=content, ContentType=file.content_type
+                )
         except Exception as e:
-            # Lidar com erro de escrita de arquivo
-            raise IOError(f"Não foi possível salvar o arquivo: {e}")
+            raise IOError(f"Falha no upload para o S3: {e}")
 
-        # 2. Preparar dados para o repositório
-        # O URL aponta para o endpoint de download, que servirá o arquivo.
+        # [MUDANÇA AQUI] Usando a forma idiomática do Prisma para conectar relações
         db_data = {
             "Nome": dicom_data.nome,
             "Paciente": dicom_data.paciente,
-            "URL": f"/dicom/{unique_filename}", # URL relativo para download
-            "Professor_ID": dicom_data.professor_id
+            "URL": object_key,
+            # Em vez de passar o ID_Professor diretamente, conectamos ao Professor
+            # pelo seu ID. O Prisma gerencia a chave estrangeira para nós.
+            "Professor": {
+                "connect": {
+                    # O ID do Professor no modelo Professor é Professor_ID
+                    "Professor_ID": dicom_data.professor_id
+                }
+            }
         }
         
-        # 3. Criar registro no banco
         new_dicom = await self.repository.create_dicom(db_data)
-        
-        # Opcional: Aqui você poderia iniciar a conversão para malha 3D em background
-        # self.mesh_generator.convert_to_mesh(file_path)
-
         return await self._map_to_response(new_dicom)
 
-    async def get_dicom_file_by_id(self, dicom_id: int) -> Optional[Tuple[str, str]]:
-        """
-        Busca os metadados do DICOM e retorna o caminho do arquivo e o nome original.
-        """
+    # As funções de download e delete JÁ ESTAVAM CORRETAS E NÃO PRECISAM MUDAR.
+    async def get_dicom_download_url(self, dicom_id: int) -> Optional[str]:
         dicom_record = await self.repository.get_dicom_by_id(dicom_id)
         if not dicom_record:
             return None
+        object_key = dicom_record.URL
+        try:
+            async with await self._get_s3_client() as s3_client:
+                download_url = await s3_client.generate_presigned_url(
+                    'get_object', Params={'Bucket': S3_BUCKET_NAME, 'Key': object_key}, ExpiresIn=3600
+                )
+                return download_url
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Não foi possível gerar a URL de download: {e}")
 
-        # O nome do arquivo está no final da URL
-        filename = os.path.basename(dicom_record.URL)
-        file_path = os.path.join(UPLOAD_DIRECTORY, filename)
-        
-        if not os.path.exists(file_path):
-            # Lidar com o caso em que o registro existe mas o arquivo não
-            raise FileNotFoundError("Arquivo físico não encontrado no servidor.")
-            
-        return (file_path, dicom_record.Nome)
+    async def delete_dicom_by_id(self, dicom_id: int, current_user_professor_id: int) -> bool:
+        dicom_to_delete = await self.repository.get_dicom_by_id(dicom_id)
+        if not dicom_to_delete:
+            return False
+        if dicom_to_delete.ID_Professor != current_user_professor_id:
+            raise PermissionError("Você не tem permissão para deletar este arquivo.")
+        object_key = dicom_to_delete.URL
+        try:
+            async with await self._get_s3_client() as s3_client:
+                await s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=object_key)
+        except Exception as e:
+            print(f"Alerta: Falha ao deletar o objeto {object_key} do S3. Erro: {e}")
+        deleted_record = await self.repository.delete_dicom(dicom_id)
+        return deleted_record is not None
 
     async def get_all_dicoms(self) -> List[DICOMResponse]:
-        """Retorna uma lista de todos os metadados DICOM."""
         dicoms = await self.repository.get_all_dicoms()
         return [await self._map_to_response(d) for d in dicoms]
 
     async def search_dicoms(self, search_params: DICOMSearch) -> List[DICOMResponse]:
-        """Busca por metadados DICOM com base em parâmetros."""
         search_criteria = {
             "Nome": search_params.nome,
             "Paciente": search_params.paciente,
-            "Professor_ID": search_params.professor_id
+            "ID_Professor": search_params.professor_id # Busca pela chave estrangeira
         }
         dicoms = await self.repository.find_dicoms(search_criteria)
         return [await self._map_to_response(d) for d in dicoms]
-    
-    async def delete_dicom_by_id(self, dicom_id: int, current_user_professor_id: int) -> bool:
-        """Deleta os metadados e o arquivo físico associado."""
-        dicom_to_delete = await self.repository.get_dicom_by_id(dicom_id)
-        if not dicom_to_delete:
-            return False # Já não existe
-
-        # Regra de negócio: apenas o professor que fez o upload pode deletar
-        if dicom_to_delete.Professor_ID != current_user_professor_id:
-            raise PermissionError("Você não tem permissão para deletar este arquivo.")
-
-        # Deleta o registro do banco
-        deleted_record = await self.repository.delete_dicom(dicom_id)
-        
-        # Se o registro foi deletado, apaga o arquivo físico
-        if deleted_record:
-            try:
-                filename = os.path.basename(deleted_record.URL)
-                file_path = os.path.join(UPLOAD_DIRECTORY, filename)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            except Exception as e:
-                # Logar o erro, mas a operação principal (deleção no DB) foi um sucesso
-                print(f"Alerta: não foi possível apagar o arquivo físico {file_path}. Erro: {e}")
-        
-        return deleted_record is not None

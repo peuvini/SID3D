@@ -1,10 +1,8 @@
-# app/dicom/controller.py
-
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
-from fastapi.responses import FileResponse
+
 from typing import List
 
-from .schemas import DICOMCreate, DICOMResponse, DICOMSearch
+from .schemas import DICOMCreate, DICOMResponse, DICOMSearch, DownloadURLResponse
 from .service import DICOMService
 from app.auth.auth_middleware import get_current_user
 from app.auth.auth_schemas import UserResponse
@@ -35,30 +33,23 @@ async def upload_dicom_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/download/{dicom_id}", response_class=FileResponse)
-async def download_dicom_file(
+@router.get("/download/{dicom_id}", response_model=DownloadURLResponse)
+async def get_dicom_download_url(
     dicom_id: int,
     service: DICOMService = Depends(get_dicom_service),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
-    Endpoint para baixar um arquivo DICOM pelo seu ID.
-    Retorna o arquivo para download.
+    Endpoint para obter uma URL segura e temporária para baixar um arquivo DICOM.
     """
     try:
-        file_info = await service.get_dicom_file_by_id(dicom_id)
-        if not file_info:
+        download_url = await service.get_dicom_download_url(dicom_id)
+        if not download_url:
             raise HTTPException(status_code=404, detail="Arquivo DICOM não encontrado.")
-        
-        file_path, original_filename = file_info
-        
-        return FileResponse(
-            path=file_path, 
-            filename=f"{original_filename}.dcm", 
-            media_type='application/dicom'
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+
+        return DownloadURLResponse(url=download_url)
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

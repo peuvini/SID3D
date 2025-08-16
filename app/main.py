@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .dependencies import db
+from config import settings
+
+# ---  ROUTERS  ---
 from app.auth.auth_controller import router as auth_router
 from app.professor.controller import router as professor_router
-from .dependencies import db
+from app.dicom.controller import router as dicom_router 
 
 app = FastAPI(
     title="SID3D API",
@@ -11,7 +15,6 @@ app = FastAPI(
 )
 
 # Configuração do CORS
-from config import settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -28,9 +31,10 @@ async def startup():
 async def shutdown():
     await db.disconnect()
 
-# Incluindo os routers
+# --- 2. INCLUA OS ROUTERS NA APLICAÇÃO ---
 app.include_router(auth_router)
 app.include_router(professor_router)
+app.include_router(dicom_router)
 
 @app.get("/")
 async def root():

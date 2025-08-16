@@ -30,7 +30,7 @@ class DICOMSearch(BaseModel):
     """Schema para os parâmetros de busca de arquivos DICOM."""
     nome: Optional[str] = None
     paciente: Optional[str] = None
-    professor_id: Optional[int] = None
+    professor_id: Optional[int] = None # Corrigido para corresponder ao service
 
 # Schema de resposta, retornado pela API
 class DICOMResponse(DICOMBase):
@@ -40,8 +40,6 @@ class DICOMResponse(DICOMBase):
 
     class Config:
         from_attributes = True # Permite mapear diretamente de modelos ORM
-
-# O diagrama menciona um DICOMFile com bytes.
-# Em FastAPI, o retorno de arquivos é geralmente tratado com StreamingResponse
-# ou FileResponse, então um schema Pydantic para o arquivo em si não é necessário.
-# O controller cuidará do tipo de resposta apropriado.
+class DownloadURLResponse(BaseModel):
+    """Schema de resposta para a URL de download pré-assinada."""
+    url: str
