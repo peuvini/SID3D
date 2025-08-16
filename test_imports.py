@@ -40,7 +40,7 @@ def test_imports():
         from app.professor.controller import router as professor_router
         
         print("✅ Importando main app...")
-        from main import app
+        from app.main import app
         
         print("🎉 Todas as importações funcionaram!")
         return True
