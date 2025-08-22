@@ -1,5 +1,3 @@
-# app/dicom/repository.py
-
 from typing import List, Optional
 from prisma import Prisma
 from prisma.models import DICOM as DicomModel
@@ -19,7 +17,6 @@ class DICOMRepository:
 
     async def get_dicom_by_id(self, dicom_id: int) -> Optional[DicomModel]:
         """Retorna um registro DICOM específico pelo seu ID."""
-        # A busca usa o nome do campo no modelo: DICOM_ID
         return await self.db.dicom.find_unique(where={"DICOM_ID": dicom_id})
 
     async def find_dicoms(self, search_criteria: dict) -> List[DicomModel]:
@@ -27,7 +24,6 @@ class DICOMRepository:
         where_clause = {k: v for k, v in search_criteria.items() if v is not None}
         return await self.db.dicom.find_many(where=where_clause)
     
-    # As funções de update e delete não precisam de mudança, pois já estão corretas.
     async def update_dicom(self, dicom_id: int, update_data: dict) -> Optional[DicomModel]:
         """Atualiza um registro DICOM existente."""
         return await self.db.dicom.update(

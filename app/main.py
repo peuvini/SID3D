@@ -31,7 +31,7 @@ async def startup():
 async def shutdown():
     await db.disconnect()
 
-# --- 2. INCLUA OS ROUTERS NA APLICAÇÃO ---
+
 app.include_router(auth_router)
 app.include_router(professor_router)
 app.include_router(dicom_router)

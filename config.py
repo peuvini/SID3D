@@ -1,26 +1,40 @@
 import os
-from typing import Optional
+from typing import List
+from dotenv import load_dotenv
 
 
 class Settings:
     """Configurações da aplicação"""
-    
-    # Banco de dados
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://usuario:senha@localhost:5432/sid3d")
-    
-    # Segurança
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "sua_chave_secreta_muito_segura_aqui_altere_em_producao")
-    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "30"))
-    
-    # Servidor
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
-    DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
-    
-    # CORS
-    ALLOWED_ORIGINS: list = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
+    def __init__(self):
+        load_dotenv()
+
+        # Banco de dados
+        self.DATABASE_URL: str = os.getenv("DATABASE_URL")
+
+        # Segurança
+        self.SECRET_KEY: str = os.getenv("SECRET_KEY")
+        self.JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM")
+        self.JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES"))
+
+        # Servidor
+        self.HOST: str = os.getenv("HOST")
+        self.PORT: int = int(os.getenv("PORT"))
+        self.DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+
+        # CORS
+        self.ALLOWED_ORIGINS: List[str] = [
+            origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        ]
+
+        # S3
+        self.S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME")
+
+        # AWS
+        self.AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID")
+        self.AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self.AWS_REGION: str = os.getenv("AWS_REGION")
 
 
-# Instância global das configurações
-settings = Settings() 
+# Instância global
+settings = Settings()

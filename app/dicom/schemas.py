@@ -1,9 +1,6 @@
-# app/dicom/schemas.py
-
 from pydantic import BaseModel
 from typing import Optional
 
-# Schema base para os dados de um arquivo DICOM
 class DICOMBase(BaseModel):
     """Schema base para metadados de um arquivo DICOM."""
     nome: str
@@ -12,12 +9,10 @@ class DICOMBase(BaseModel):
     url: Optional[str] = None 
 
 # Schema para a criação de um novo registro DICOM
-# O controller receberá esses dados junto com o arquivo.
 class DICOMCreate(BaseModel):
     """Schema para receber os metadados durante o upload de um arquivo DICOM."""
     nome: str
     paciente: str
-    professor_id: int
 
 # Schema para a atualização de um registro DICOM
 class DICOMUpdate(BaseModel):
@@ -30,7 +25,6 @@ class DICOMSearch(BaseModel):
     """Schema para os parâmetros de busca de arquivos DICOM."""
     nome: Optional[str] = None
     paciente: Optional[str] = None
-    professor_id: Optional[int] = None # Corrigido para corresponder ao service
 
 # Schema de resposta, retornado pela API
 class DICOMResponse(DICOMBase):

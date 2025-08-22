@@ -6,8 +6,6 @@ import httpx # Biblioteca moderna para requisições HTTP, ideal para interagir 
 
 from .repository import ImpressoraRepository, ImpressaoRepository
 from .schemas import ImpressoraCreate, ImpressoraResponse, ImprimirRequest, ImpressaoResponse
-# Precisamos verificar se o arquivo a ser impresso existe. Importamos o repositório correspondente.
-# Supondo que 'ArquivoImpressora' seja o mesmo que 'DICOM' do passo anterior.
 from app.dicom.repository import DICOMRepository
 
 

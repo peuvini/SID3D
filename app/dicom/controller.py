@@ -11,22 +11,18 @@ from app.dependencies import get_dicom_service # Você precisará criar este dep
 router = APIRouter(prefix="/dicom", tags=["DICOM"])
 
 @router.post("/upload", response_model=DICOMResponse, status_code=201)
-async def upload_dicom_file(
+async def upload_dicom_files( 
+    files: List[UploadFile] = File(...),
     dicom_meta: DICOMCreate = Depends(),
-    file: UploadFile = File(...),
     service: DICOMService = Depends(get_dicom_service),
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
-    Endpoint para fazer upload de um arquivo DICOM e seus metadados.
-    O professor logado é associado automaticamente.
+    Endpoint para fazer upload de uma pasta de arquivos DICOM e seus metadados.
+    Cria um único registro de exame para todos os arquivos.
     """
     try:
-        # Garante que o ID do professor no DTO corresponda ao usuário logado
-        if dicom_meta.professor_id != current_user.professor_id:
-            raise HTTPException(status_code=403, detail="Operação não permitida. O professor_id deve ser o do usuário logado.")
-            
-        return await service.create_dicom_upload(file, dicom_meta)
+        return await service.create_dicom_upload(files, dicom_meta, current_user.professor_id)
     except IOError as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {e}")
     except Exception as e:

@@ -1,23 +1,26 @@
-# app/dicom/service.py
-
 import os
-import aiobotocore
+from aiobotocore.session import get_session
+import boto3
 from typing import List, Optional
 from uuid import uuid4
 from fastapi import UploadFile, HTTPException
+from config import settings
 
 from .repository import DICOMRepository
 from .schemas import DICOMCreate, DICOMResponse, DICOMSearch
 from app.utils.mesh_generator import MeshGeneratorAbstract 
 
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-AWS_REGION = os.getenv("AWS_REGION")
+s3 = boto3.resource('s3')
+
+S3_BUCKET_NAME = settings.S3_BUCKET_NAME
+AWS_REGION = settings.AWS_REGION
 
 class DICOMService:
     def __init__(self, repository: DICOMRepository, mesh_generator: MeshGeneratorAbstract):
         self.repository = repository
         self.mesh_generator = mesh_generator
-        self.session = aiobotocore.get_session()
+        self.session = get_session()
+
 
     async def _get_s3_client(self):
         return self.session.create_client('s3', region_name=AWS_REGION)
@@ -32,37 +35,37 @@ class DICOMService:
             nome=dicom_model.Nome,
             paciente=dicom_model.Paciente,
             url=dicom_model.URL,
-            # [CORREÇÃO AQUI] O modelo Prisma usa ID_Professor para a chave estrangeira
             professor_id=dicom_model.ID_Professor,
         )
 
-    async def create_dicom_upload(self, file: UploadFile, dicom_data: DICOMCreate) -> DICOMResponse:
+    async def create_dicom_upload(self, file: list[UploadFile], dicom_data: DICOMCreate, user_id: int) -> DICOMResponse:
         """
-        Faz upload do arquivo DICOM para o AWS S3 e salva os metadados no banco.
+        Faz upload de múltiplos arquivos DICOM para o AWS S3 e salva os metadados do primeiro no banco.
         """
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'dcm'
-        object_key = f"dicom-files/{uuid4()}.{file_extension}"
-
+        object_keys = []
         try:
-            content = await file.read()
-            async with await self._get_s3_client() as s3_client:
-                await s3_client.put_object(
-                    Bucket=S3_BUCKET_NAME, Key=object_key, Body=content, ContentType=file.content_type
+            for f in file:
+                file_extension = f.filename.split('.')[-1] if '.' in f.filename else 'dcm'
+                object_key = f"dicom-files/{user_id}/{uuid4()}.{file_extension}"
+                await f.seek(0)  # Reset do ponteiro do arquivo
+                content = await f.read()
+                print(f"S3_BUCKET_NAME: {S3_BUCKET_NAME}, object_key: {object_key}, content_type: {f.content_type}")
+                s3.Object(S3_BUCKET_NAME, object_key).put(
+                    Body=content, 
+                    ContentType=f.content_type
                 )
+                object_keys.append(object_key)
         except Exception as e:
             raise IOError(f"Falha no upload para o S3: {e}")
 
-        # [MUDANÇA AQUI] Usando a forma idiomática do Prisma para conectar relações
+        # Salva o primeiro arquivo no banco
         db_data = {
             "Nome": dicom_data.nome,
             "Paciente": dicom_data.paciente,
-            "URL": object_key,
-            # Em vez de passar o ID_Professor diretamente, conectamos ao Professor
-            # pelo seu ID. O Prisma gerencia a chave estrangeira para nós.
+            "URL": object_keys[0] if object_keys else None,
             "Professor": {
                 "connect": {
-                    # O ID do Professor no modelo Professor é Professor_ID
-                    "Professor_ID": dicom_data.professor_id
+                    "Professor_ID": user_id
                 }
             }
         }
@@ -70,7 +73,6 @@ class DICOMService:
         new_dicom = await self.repository.create_dicom(db_data)
         return await self._map_to_response(new_dicom)
 
-    # As funções de download e delete JÁ ESTAVAM CORRETAS E NÃO PRECISAM MUDAR.
     async def get_dicom_download_url(self, dicom_id: int) -> Optional[str]:
         dicom_record = await self.repository.get_dicom_by_id(dicom_id)
         if not dicom_record:
@@ -107,8 +109,7 @@ class DICOMService:
     async def search_dicoms(self, search_params: DICOMSearch) -> List[DICOMResponse]:
         search_criteria = {
             "Nome": search_params.nome,
-            "Paciente": search_params.paciente,
-            "ID_Professor": search_params.professor_id # Busca pela chave estrangeira
+            "Paciente": search_params.paciente
         }
         dicoms = await self.repository.find_dicoms(search_criteria)
         return [await self._map_to_response(d) for d in dicoms]

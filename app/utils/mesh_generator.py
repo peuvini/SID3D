@@ -1,5 +1,3 @@
-# app/utils/mesh_generator.py
-
 from abc import ABC, abstractmethod
 
 class MeshGeneratorAbstract(ABC):
