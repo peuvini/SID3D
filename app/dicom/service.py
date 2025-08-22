@@ -38,7 +38,7 @@ class DICOMService:
             professor_id=dicom_model.ID_Professor,
         )
 
-    async def create_dicom_upload(self, file: list[UploadFile], dicom_data: DICOMCreate, user_id: int) -> DICOMResponse:
+    async def create_dicom_upload(self, paciente: str , file: list[UploadFile], dicom_data: DICOMCreate, user_id: int) -> DICOMResponse:
         """
         Faz upload de múltiplos arquivos DICOM para o AWS S3 e salva os metadados do primeiro no banco.
         """
@@ -46,7 +46,7 @@ class DICOMService:
         try:
             for f in file:
                 file_extension = f.filename.split('.')[-1] if '.' in f.filename else 'dcm'
-                object_key = f"dicom-files/{user_id}/{uuid4()}.{file_extension}"
+                object_key = f"dicom-files/{user_id}/{paciente}/{uuid4()}.{file_extension}"
                 await f.seek(0)  # Reset do ponteiro do arquivo
                 content = await f.read()
                 print(f"S3_BUCKET_NAME: {S3_BUCKET_NAME}, object_key: {object_key}, content_type: {f.content_type}")

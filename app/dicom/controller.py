@@ -13,6 +13,7 @@ router = APIRouter(prefix="/dicom", tags=["DICOM"])
 @router.post("/upload", response_model=DICOMResponse, status_code=201)
 async def upload_dicom_files( 
     files: List[UploadFile] = File(...),
+    paciente: str = Depends(),  
     dicom_meta: DICOMCreate = Depends(),
     service: DICOMService = Depends(get_dicom_service),
     current_user: UserResponse = Depends(get_current_user),

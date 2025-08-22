@@ -3,7 +3,6 @@ from typing import Optional
 
 class DICOMBase(BaseModel):
     """Schema base para metadados de um arquivo DICOM."""
-    nome: str
     paciente: str
     # O URL será gerenciado internamente pelo serviço ao fazer o upload
     url: Optional[str] = None 
@@ -11,13 +10,11 @@ class DICOMBase(BaseModel):
 # Schema para a criação de um novo registro DICOM
 class DICOMCreate(BaseModel):
     """Schema para receber os metadados durante o upload de um arquivo DICOM."""
-    nome: str
     paciente: str
 
 # Schema para a atualização de um registro DICOM
 class DICOMUpdate(BaseModel):
     """Schema para atualizar os metadados de um arquivo DICOM."""
-    nome: Optional[str] = None
     paciente: Optional[str] = None
 
 # Schema para representar a busca, usando query params
