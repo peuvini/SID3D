@@ -7,15 +7,13 @@ from config import settings
 
 from .repository import DICOMRepository
 from .schemas import DICOMCreate, DICOMResponse, DICOMSearch, DICOMUpdate
-from app.utils.mesh_generator import MeshGeneratorAbstract 
 
 S3_BUCKET_NAME = settings.S3_BUCKET_NAME
 AWS_REGION = settings.AWS_REGION
 
 class DICOMService:
-    def __init__(self, repository: DICOMRepository, mesh_generator: MeshGeneratorAbstract):
+    def __init__(self, repository: DICOMRepository):
         self.repository = repository
-        self.mesh_generator = mesh_generator
         self.session = get_session()
 
     async def _get_s3_client(self):

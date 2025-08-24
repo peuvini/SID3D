@@ -7,4 +7,10 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 bcrypt==4.1.2
 PyJWT==2.8.0
-requests==2.31.0 
+requests==2.31.0
+pydicom==2.4.4
+numpy==1.24.3
+scipy==1.11.1
+scikit-image==0.21.0
+trimesh==3.23.5
+aiobotocore==2.7.0 

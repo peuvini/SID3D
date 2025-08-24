@@ -12,25 +12,21 @@ from app.dicom.service import DICOMService
 # Imports Arquivo3D
 from app.arquivo3D.repository import Arquivo3DRepository
 from app.arquivo3D.service import Arquivo3DService
-from app.arquivo3D.factory import Arquivo3DAbstractFactory
-from app.utils.mesh_generator import MeshGeneratorAbstract # <- Este arquivo precisa ser criado!
+from app.arquivo3D.factory import Arquivo3DAbstractFactory, Arquivo3DFactoryImpl, Arquivo3DFactoryDummy
 
 # --- Instâncias Globais ---
 db = Prisma()
 auth_service = AuthService()
 
-# --- Implementação "Dummy" (Temporária) para o MeshGenerator ---
-class DummyMeshGenerator(MeshGeneratorAbstract):
-    def convert_to_mesh(self, source_file_key: str):
-        print(f"SIMULAÇÃO: Geração de malha para o arquivo {source_file_key} seria iniciada aqui.")
-        pass
-
-# --- Implementação "Dummy" (Temporária) para o Arquivo3DFactory ---
-class DummyArquivo3DFactory(Arquivo3DAbstractFactory):
-    def generate(self, dicom_files_content: List[bytes], file_format: str = "stl") -> bytes:
-        print(f"SIMULAÇÃO: Geração de arquivo 3D no formato {file_format} a partir de {len(dicom_files_content)} arquivos DICOM.")
-        # Retorna dados dummy para teste
-        return b"dummy 3d file content"
+# --- Factory para geração de arquivos 3D ---
+try:
+    # Tenta usar a implementação real
+    arquivo3d_factory = Arquivo3DFactoryImpl(iso_value=100.0, smooth=True)
+    print("✅ Usando Arquivo3DFactoryImpl (implementação real)")
+except ImportError as e:
+    # Fallback para implementação dummy se bibliotecas não estiverem disponíveis
+    arquivo3d_factory = Arquivo3DFactoryDummy()
+    print(f"⚠️ Usando Arquivo3DFactoryDummy - Bibliotecas não disponíveis: {e}")
 
 # --- Provedores de Dependência (Providers) ---
 def get_db() -> Prisma:
@@ -59,10 +55,9 @@ def get_dicom_service(
 ) -> DICOMService:
     """
     Provedor para o serviço DICOM.
-    Cria e injeta as dependências necessárias (repositório e mesh_generator).
+    Cria e injeta as dependências necessárias (repositório).
     """
-    mesh_generator = DummyMeshGenerator()
-    return DICOMService(repository=repository, mesh_generator=mesh_generator)
+    return DICOMService(repository=repository)
 
 # --- Arquivo3D ---
 def get_arquivo3d_repository(db: Prisma = Depends(get_db)) -> Arquivo3DRepository:
@@ -77,9 +72,8 @@ def get_arquivo3d_service(
     Provedor para o serviço Arquivo3D.
     Cria e injeta as dependências necessárias (repositório, dicom_repository e generator).
     """
-    generator = DummyArquivo3DFactory()
     return Arquivo3DService(
         repository=repository,
         dicom_repository=dicom_repository,
-        generator=generator
+        generator=arquivo3d_factory
     )
