@@ -58,3 +58,9 @@ model DICOM {
   Professor    Professor     @relation(fields: [ID_Professor], references: [Professor_ID])
   Arquivos3D   Arquivo3D[]
 }
+
+model Paciente {
+  Paciente_ID   String @db.VarChar(255)
+  Nome String @id @db.VarChar(255)
+
+}

@@ -6,7 +6,8 @@ from config import settings
 # ---  ROUTERS  ---
 from app.auth.auth_controller import router as auth_router
 from app.professor.controller import router as professor_router
-from app.dicom.controller import router as dicom_router 
+from app.dicom.controller import router as dicom_router
+from app.arquivo3D.controller import router as arquivo3d_router
 
 app = FastAPI(
     title="SID3D API",
@@ -35,6 +36,7 @@ async def shutdown():
 app.include_router(auth_router)
 app.include_router(professor_router)
 app.include_router(dicom_router)
+app.include_router(arquivo3d_router)
 
 @app.get("/")
 async def root():
