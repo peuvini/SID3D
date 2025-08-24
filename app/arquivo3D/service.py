@@ -1,6 +1,5 @@
 # arquivo3D/service.py
 
-import json
 from typing import List, Optional
 from uuid import uuid4
 from fastapi import HTTPException
@@ -26,30 +25,19 @@ class Arquivo3DService:
         """Cria e retorna um cliente S3 assíncrono."""
         return self.session.create_client('s3', region_name=AWS_REGION)
 
-    def _parse_urls_from_json(self, urls_json: str) -> List[str]:
-        """Converte string JSON para lista de URLs."""
-        try:
-            return json.loads(urls_json) if urls_json else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-
     async def _map_to_response(self, model) -> Arquivo3DResponse:
         """Helper para mapear o modelo do Prisma para o schema de resposta."""
         if not model:
             return None
         
-        # Extrai dados do professor através do relacionamento DICOM
-        professor_id = model.DICOM.ID_Professor if hasattr(model, 'DICOM') and model.DICOM else None
-        
         return Arquivo3DResponse(
             id=model.id,
             dicom_id=model.dicom_id,
-            url=model.url,
-            version=model.version,
-            file_format=FileFormat(model.file_format) if hasattr(model, 'file_format') else FileFormat.STL,
-            professor_id=professor_id or 0,
-            created_at=model.created_at.isoformat() if hasattr(model, 'created_at') and model.created_at else None,
-            file_size=model.file_size if hasattr(model, 'file_size') else None
+            s3_url=model.s3_url,
+            file_format=FileFormat(model.file_format),
+            file_size=model.file_size,
+            created_at=model.created_at,
+            updated_at=model.updated_at
         )
 
     async def _download_dicom_files_from_s3(self, dicom_urls: List[str]) -> List[bytes]:
@@ -108,13 +96,13 @@ class Arquivo3DService:
         dicom_record = await self.dicom_repository.get_dicom_by_id(dicom_id)
         if not dicom_record:
             raise HTTPException(status_code=404, detail="Registro DICOM não encontrado")
-        
+            
         # Verificar se o usuário tem permissão (é o dono do DICOM)
-        if dicom_record.ID_Professor != user_id:
+        if dicom_record.professor_id != user_id:
             raise HTTPException(status_code=403, detail="Você não tem permissão para converter este DICOM")
 
-        # 2. Extrair URLs dos arquivos DICOM do campo JSON
-        dicom_urls = self._parse_urls_from_json(dicom_record.URL)
+        # 2. Extrair URLs dos arquivos DICOM do campo s3_urls
+        dicom_urls = dicom_record.s3_urls or []
         if not dicom_urls:
             raise HTTPException(status_code=400, detail="Nenhum arquivo DICOM encontrado para conversão")
 
@@ -133,14 +121,9 @@ class Arquivo3DService:
         # 5. Fazer upload do arquivo 3D gerado para o S3
         object_key = await self._upload_3d_file_to_s3(file_3d_content, user_id, dicom_id, file_format)
 
-        # 6. Determinar a próxima versão
-        existing_files = await self.repository.find_by_dicom_id(dicom_id)
-        next_version = max([f.version for f in existing_files], default=0) + 1
-
-        # 7. Salvar metadados no banco de dados
+        # 6. Salvar metadados no banco de dados
         db_data = {
-            "url": object_key,
-            "version": next_version,
+            "s3_url": object_key,
             "dicom_id": dicom_id,
             "file_format": file_format.value,
             "file_size": len(file_3d_content)
@@ -164,16 +147,16 @@ class Arquivo3DService:
         if not arquivo_record:
             return None
             
-        # Verificar permissão através do relacionamento DICOM
+        # Verificar permissão através do relacionamento DICOM->Professor
         if hasattr(arquivo_record, 'DICOM') and arquivo_record.DICOM:
-            if arquivo_record.DICOM.ID_Professor != current_user_id:
+            if arquivo_record.DICOM.professor_id != current_user_id:
                 raise HTTPException(status_code=403, detail="Você não tem permissão para acessar este arquivo")
 
         try:
             async with await self._get_s3_client() as s3_client:
                 download_url = await s3_client.generate_presigned_url(
                     'get_object',
-                    Params={'Bucket': S3_BUCKET_NAME, 'Key': arquivo_record.url},
+                    Params={'Bucket': S3_BUCKET_NAME, 'Key': arquivo_record.s3_url},
                     ExpiresIn=3600
                 )
                 return download_url
@@ -195,14 +178,14 @@ class Arquivo3DService:
         if not arquivo_record:
             raise HTTPException(status_code=404, detail="Arquivo 3D não encontrado")
             
-        # Verificar permissão
+        # Verificar permissão através do relacionamento DICOM->Professor
         if hasattr(arquivo_record, 'DICOM') and arquivo_record.DICOM:
-            if arquivo_record.DICOM.ID_Professor != current_user_id:
+            if arquivo_record.DICOM.professor_id != current_user_id:
                 raise HTTPException(status_code=403, detail="Você não tem permissão para acessar este arquivo")
 
         try:
             async with await self._get_s3_client() as s3_client:
-                response = await s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=arquivo_record.url)
+                response = await s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=arquivo_record.s3_url)
                 return await response['Body'].read()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Erro ao obter arquivo do S3: {str(e)}")
@@ -213,7 +196,7 @@ class Arquivo3DService:
         
         Args:
             current_user_id: Se fornecido, filtra apenas os arquivos do usuário
-            
+        
         Returns:
             Lista de Arquivo3DResponse
         """
@@ -221,7 +204,7 @@ class Arquivo3DService:
             files = await self.repository.find_by_professor_id(current_user_id)
         else:
             files = await self.repository.get_all()
-            
+        
         return [await self._map_to_response(f) for f in files if f]
 
     async def get_files_by_dicom_id(self, dicom_id: int, current_user_id: int) -> List[Arquivo3DResponse]:
@@ -240,7 +223,7 @@ class Arquivo3DService:
         if not dicom_record:
             raise HTTPException(status_code=404, detail="Registro DICOM não encontrado")
             
-        if dicom_record.ID_Professor != current_user_id:
+        if dicom_record.professor_id != current_user_id:
             raise HTTPException(status_code=403, detail="Você não tem permissão para acessar estes arquivos")
 
         files = await self.repository.find_by_dicom_id(dicom_id)
@@ -274,15 +257,15 @@ class Arquivo3DService:
         if not arquivo_record:
             return False
             
-        # Verificar permissão
+        # Verificar permissão através do relacionamento DICOM->Professor
         if hasattr(arquivo_record, 'DICOM') and arquivo_record.DICOM:
-            if arquivo_record.DICOM.ID_Professor != current_user_id:
+            if arquivo_record.DICOM.professor_id != current_user_id:
                 raise HTTPException(status_code=403, detail="Você não tem permissão para deletar este arquivo")
 
         # Remove arquivo do S3
         try:
             async with await self._get_s3_client() as s3_client:
-                await s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=arquivo_record.url)
+                await s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=arquivo_record.s3_url)
         except Exception as e:
             print(f"Alerta: Falha ao deletar arquivo do S3: {e}")
 

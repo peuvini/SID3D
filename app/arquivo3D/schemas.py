@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
+from datetime import datetime
 
 class FileFormat(str, Enum):
     """Formatos de arquivo 3D suportados."""
@@ -15,20 +16,20 @@ class Arquivo3DBase(BaseModel):
 
 class Arquivo3DCreate(Arquivo3DBase):
     """Schema para a criação de um novo arquivo 3D."""
-    pass
+    file_size: Optional[int] = Field(None, description="Tamanho do arquivo em bytes")
 
 class Arquivo3DUpdate(BaseModel):
     """Schema para atualização de metadados de um arquivo 3D."""
     file_format: Optional[FileFormat] = Field(None, description="Novo formato do arquivo")
+    file_size: Optional[int] = Field(None, description="Tamanho do arquivo em bytes")
 
 class Arquivo3DResponse(Arquivo3DBase):
     """Schema para a resposta da API com os dados completos de um arquivo 3D."""
     id: int = Field(..., description="ID único do arquivo 3D")
-    url: str = Field(..., description="URL do arquivo no S3")
-    version: int = Field(..., description="Versão do arquivo")
-    professor_id: int = Field(..., description="ID do professor responsável")
-    created_at: Optional[str] = Field(None, description="Data de criação")
+    s3_url: str = Field(..., description="URL do arquivo no S3")
     file_size: Optional[int] = Field(None, description="Tamanho do arquivo em bytes")
+    created_at: datetime = Field(..., description="Data de criação")
+    updated_at: datetime = Field(..., description="Data da última atualização")
 
     class Config:
         from_attributes = True

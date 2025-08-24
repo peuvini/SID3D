@@ -55,7 +55,7 @@ class AuthService:
         """Registra um novo usuário"""
         # Verifica se o email já existe
         existing_user = await self.prisma.professor.find_unique(
-            where={"Email": user_data.email}
+            where={"email": user_data.email}
         )
         
         if existing_user:
@@ -67,21 +67,21 @@ class AuthService:
         # Cria o usuário
         new_user = await self.prisma.professor.create(
             data={
-                "Nome": user_data.nome,
-                "Email": user_data.email,
-                "Senha": hashed_password
+                "nome": user_data.nome,
+                "email": user_data.email,
+                "password": hashed_password
             }
         )
         
         # Cria o token
-        token_data = {"sub": str(new_user.Professor_ID), "email": new_user.Email}
+        token_data = {"sub": str(new_user.id), "email": new_user.email}
         access_token = self._create_access_token(token_data)
         
         # Retorna a resposta
         user_response = UserResponse(
-            professor_id=new_user.Professor_ID,
-            nome=new_user.Nome,
-            email=new_user.Email
+            professor_id=new_user.id,
+            nome=new_user.nome,
+            email=new_user.email
         )
         
         token_response = TokenResponse(
@@ -95,25 +95,24 @@ class AuthService:
         """Faz login do usuário"""
         # Busca o usuário pelo email
         user = await self.prisma.professor.find_unique(
-            where={"Email": login_data.email}
+            where={"email": login_data.email}
         )
-        print(user)
         if not user:
             raise ValueError("Email ou senha incorretos")
         
         # Verifica a senha
-        if not self._verify_password(login_data.senha, user.Senha):
+        if not self._verify_password(login_data.senha, user.password):
             raise ValueError("Email ou senha incorretos")
         
         # Cria o token
-        token_data = {"sub": str(user.Professor_ID), "email": user.Email}
+        token_data = {"sub": str(user.id), "email": user.email}
         access_token = self._create_access_token(token_data)
         
         # Retorna a resposta
         user_response = UserResponse(
-            professor_id=user.Professor_ID,
-            nome=user.Nome,
-            email=user.Email
+            professor_id=user.id,
+            nome=user.nome,
+            email=user.email
         )
         
         token_response = TokenResponse(
@@ -131,14 +130,14 @@ class AuthService:
         
         user_id = int(payload.get("sub"))
         user = await self.prisma.professor.find_unique(
-            where={"Professor_ID": user_id}
+            where={"id": user_id}
         )
         
         if not user:
             return None
         
         return UserResponse(
-            professor_id=user.Professor_ID,
-            nome=user.Nome,
-            email=user.Email
+            professor_id=user.id,
+            nome=user.nome,
+            email=user.email
         ) 

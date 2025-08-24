@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from datetime import datetime
 
 class DICOMBase(BaseModel):
     """Schema base para metadados de um arquivo DICOM."""
-    nome: str = Field(..., description="Nome do exame DICOM")
-    paciente: str = Field(..., description="Nome do paciente")
+    nome: Optional[str] = Field(None, description="Nome do exame DICOM")
+    paciente: Optional[str] = Field(None, description="Nome do paciente")
 
 # Schema para a criação de um novo registro DICOM
 class DICOMCreate(DICOMBase):
@@ -26,10 +27,11 @@ class DICOMSearch(BaseModel):
 # Schema de resposta, retornado pela API
 class DICOMResponse(DICOMBase):
     """Schema para a resposta da API com os dados completos de um DICOM."""
-    dicom_id: int = Field(..., description="ID único do registro DICOM")
+    id: int = Field(..., description="ID único do registro DICOM")
     professor_id: int = Field(..., description="ID do professor responsável")
-    urls: List[str] = Field(default_factory=list, description="URLs dos arquivos DICOM no S3")
-    created_at: Optional[str] = Field(None, description="Data de criação do registro")
+    s3_urls: List[str] = Field(default_factory=list, description="URLs dos arquivos no S3")
+    created_at: datetime = Field(..., description="Data de criação do registro")
+    updated_at: datetime = Field(..., description="Data da última atualização")
 
     class Config:
         from_attributes = True

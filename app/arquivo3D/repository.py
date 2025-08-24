@@ -40,7 +40,7 @@ class Arquivo3DRepository:
         return await self.db.arquivo3d.find_many(
             where={
                 "DICOM": {
-                    "ID_Professor": professor_id
+                    "professor_id": professor_id
                 }
             },
             include={'DICOM': {'include': {'Professor': True}}}
@@ -50,7 +50,8 @@ class Arquivo3DRepository:
         """Retorna a versão mais recente de um arquivo 3D para um DICOM específico."""
         return await self.db.arquivo3d.find_first(
             where={"dicom_id": dicom_id},
-            include={'DICOM': {'include': {'Professor': True}}}
+            include={'DICOM': {'include': {'Professor': True}}},
+            order={'created_at': 'desc'}
         )
     
     async def update(self, arquivo_id: int, update_data: dict) -> Optional[Arquivo3DModel]:

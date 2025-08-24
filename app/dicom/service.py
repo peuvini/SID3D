@@ -1,5 +1,4 @@
 import os
-import json
 from aiobotocore.session import get_session
 from typing import List, Optional
 from uuid import uuid4
@@ -23,27 +22,19 @@ class DICOMService:
         """Cria e retorna um cliente S3 assíncrono."""
         return self.session.create_client('s3', region_name=AWS_REGION)
 
-    def _parse_urls_from_json(self, urls_json: str) -> List[str]:
-        """Converte string JSON para lista de URLs."""
-        try:
-            return json.loads(urls_json) if urls_json else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-
     async def _map_to_response(self, dicom_model) -> DICOMResponse:
         """Helper para mapear o modelo do Prisma para o schema de resposta."""
         if not dicom_model:
             return None
         
-        urls = self._parse_urls_from_json(dicom_model.URL)
-        
         return DICOMResponse(
-            dicom_id=dicom_model.DICOM_ID,
-            nome=dicom_model.Nome,
-            paciente=dicom_model.Paciente,
-            urls=urls,
-            professor_id=dicom_model.ID_Professor,
-            created_at=dicom_model.created_at.isoformat() if hasattr(dicom_model, 'created_at') and dicom_model.created_at else None
+            id=dicom_model.id,
+            nome=dicom_model.nome,
+            paciente=dicom_model.paciente,
+            professor_id=dicom_model.professor_id,
+            s3_urls=dicom_model.s3_urls or [],
+            created_at=dicom_model.created_at,
+            updated_at=dicom_model.updated_at
         )
 
     async def create_dicom_upload(self, files: List[UploadFile], dicom_data: DICOMCreate, user_id: int) -> DICOMResponse:
@@ -61,27 +52,17 @@ class DICOMService:
         # Validações
         if not files:
             raise HTTPException(status_code=400, detail="Pelo menos um arquivo deve ser enviado")
-        
-        if not dicom_data.nome.strip():
-            raise HTTPException(status_code=400, detail="Nome do exame é obrigatório")
-            
-        if not dicom_data.paciente.strip():
-            raise HTTPException(status_code=400, detail="Nome do paciente é obrigatório")
 
         # 1. Cria registro DICOM no banco (inicialmente sem URLs)
         db_data = {
-            "Nome": dicom_data.nome.strip(),
-            "Paciente": dicom_data.paciente.strip(),
-            "URL": json.dumps([]),  # Array vazio inicialmente
-            "Professor": {
-                "connect": {
-                    "Professor_ID": user_id
-                }
-            }
+            "nome": dicom_data.nome,
+            "paciente": dicom_data.paciente,
+            "professor_id": user_id,
+            "s3_urls": []  # Array vazio inicialmente
         }
         
         new_dicom = await self.repository.create_dicom(db_data)
-        dicom_id = new_dicom.DICOM_ID
+        dicom_id = new_dicom.id
 
         # 2. Faz upload dos arquivos para o S3
         uploaded_urls = []
@@ -122,8 +103,8 @@ class DICOMService:
 
         # 3. Atualiza o registro com as URLs dos arquivos
         if uploaded_urls:
-            await self.repository.update_dicom_urls(dicom_id, json.dumps(uploaded_urls))
-            new_dicom.URL = json.dumps(uploaded_urls)
+            await self.repository.update_dicom_urls(dicom_id, uploaded_urls)
+            new_dicom.s3_urls = uploaded_urls
         else:
             # Se nenhum arquivo foi enviado com sucesso, remove o registro
             await self.repository.delete_dicom(dicom_id)
@@ -158,7 +139,7 @@ class DICOMService:
         if not dicom_record:
             return None
             
-        urls = self._parse_urls_from_json(dicom_record.URL)
+        urls = dicom_record.s3_urls or []
         if not urls or file_index >= len(urls):
             return None
             
@@ -192,21 +173,22 @@ class DICOMService:
         if not existing_dicom:
             return None
             
-        if existing_dicom.ID_Professor != current_user_id:
+        if existing_dicom.professor_id != current_user_id:
             raise HTTPException(status_code=403, detail="Você não tem permissão para editar este registro")
 
         # Prepara dados para atualização (apenas campos não-nulos)
         update_dict = {}
         if update_data.nome is not None:
-            update_dict["Nome"] = update_data.nome.strip()
+            update_dict["nome"] = update_data.nome
         if update_data.paciente is not None:
-            update_dict["Paciente"] = update_data.paciente.strip()
+            update_dict["paciente"] = update_data.paciente
 
         if not update_dict:
             return await self._map_to_response(existing_dicom)
 
         updated_dicom = await self.repository.update_dicom(dicom_id, update_dict)
         return await self._map_to_response(updated_dicom)
+    
     async def delete_dicom_by_id(self, dicom_id: int, current_user_professor_id: int) -> bool:
         """
         Deleta um registro DICOM e seus arquivos associados do S3.
@@ -222,11 +204,11 @@ class DICOMService:
         if not dicom_to_delete:
             return False
             
-        if dicom_to_delete.ID_Professor != current_user_professor_id:
+        if dicom_to_delete.professor_id != current_user_professor_id:
             raise HTTPException(status_code=403, detail="Você não tem permissão para deletar este arquivo")
 
         # Remove arquivos do S3
-        urls = self._parse_urls_from_json(dicom_to_delete.URL)
+        urls = dicom_to_delete.s3_urls or []
         if urls:
             try:
                 await self._cleanup_s3_files(urls)
@@ -243,7 +225,7 @@ class DICOMService:
         
         Args:
             current_user_id: Se fornecido, filtra apenas os DICOMs do usuário
-            
+        
         Returns:
             Lista de DICOMResponse
         """
@@ -268,13 +250,13 @@ class DICOMService:
         search_criteria = {}
         
         if search_params.nome:
-            search_criteria["Nome"] = search_params.nome
+            search_criteria["nome"] = search_params.nome
         if search_params.paciente:
-            search_criteria["Paciente"] = search_params.paciente
+            search_criteria["paciente"] = search_params.paciente
             
         # Se especificado um usuário, adiciona aos critérios
         if current_user_id:
-            search_criteria["ID_Professor"] = current_user_id
+            search_criteria["professor_id"] = current_user_id
             
         dicoms = await self.repository.find_dicoms(search_criteria)
         return [await self._map_to_response(d) for d in dicoms if d]
