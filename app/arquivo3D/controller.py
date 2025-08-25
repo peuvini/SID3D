@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from typing import List, Optional
 
-from .schemas import Arquivo3DResponse, ConversionRequest, DownloadURLResponse, FileFormat
+from .schemas import (
+    Arquivo3DResponse, ConversionRequest, DownloadURLResponse, FileFormat,
+    SlicePlane, VolumeDimensionsResponse, EditRequest
+)
 from .service import Arquivo3DService
 from app.auth.auth_middleware import get_current_user
 from app.auth.auth_schemas import UserResponse
@@ -28,9 +31,8 @@ async def converter_dicom(
     """
     try:
         return await service.converter_dicom_para_3d(
-            conversion_request.dicom_id, 
-            current_user.professor_id, 
-            conversion_request.file_format
+            conversion_request, 
+            current_user.professor_id
         )
     except HTTPException:
         raise
@@ -173,3 +175,72 @@ async def delete_file(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+    
+
+
+@router.get("/volume/dimensions/{dicom_id}", response_model=VolumeDimensionsResponse)
+async def get_volume_dimensions(
+    dicom_id: int,
+    service: Arquivo3DService = Depends(get_arquivo3d_service),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Retorna as dimensões e o número máximo de fatias para cada plano
+    (axial, coronal, sagital) de uma série DICOM.
+    """
+    try:
+        return await service.get_volume_dimensions(dicom_id, current_user.professor_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
+
+@router.get("/slice/{dicom_id}",
+            responses={200: {"content": {"image/png": {}}}},
+            response_class=Response)
+async def get_slice_image(
+    dicom_id: int,
+    plane: SlicePlane = Query(..., description="Plano de corte: axial, sagital ou coronal"),
+    index: int = Query(..., description="Índice da fatia desejada"),
+    service: Arquivo3DService = Depends(get_arquivo3d_service),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Obtém uma imagem PNG de uma fatia específica de uma série DICOM.
+    """
+    try:
+        image_bytes = await service.get_slice_image(
+            dicom_id, current_user.professor_id, plane.value, index
+        )
+        return Response(content=image_bytes, media_type="image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {e}")
+    
+@router.post("/{arquivo_id}/edit", response_model=Arquivo3DResponse, status_code=201)
+async def edit_file(
+    arquivo_id: int,
+    edit_request: EditRequest,
+    service: Arquivo3DService = Depends(get_arquivo3d_service),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Edita um arquivo 3D existente usando uma operação booleana com uma caixa.
+    
+    Cria um *novo* arquivo 3D com o resultado da edição.
+    
+    - **operation**: 'intersect' (manter o que está dentro da caixa) ou 'difference' (remover o que está dentro).
+    - **box_center**: Coordenadas [x, y, z] do centro da caixa.
+    - **box_size**: Dimensões [largura, profundidade, altura] da caixa.
+    """
+    try:
+        return await service.edit_3d_file(
+            original_arquivo_id=arquivo_id,
+            user_id=current_user.professor_id,
+            edit_params=edit_request
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno no endpoint de edição: {e}")
