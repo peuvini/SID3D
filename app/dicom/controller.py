@@ -109,3 +109,27 @@ async def delete_dicom_file(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/{dicom_id}", response_model=DICOMResponse)
+async def get_dicom_by_id(
+    dicom_id: int,
+    service: DICOMService = Depends(get_dicom_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Retorna os metadados de um arquivo DICOM específico pelo seu ID.
+    O acesso é restrito ao professor que fez o upload.
+    """
+    try:
+        dicom = await service.get_dicom_by_id(dicom_id)
+
+        if not dicom:
+            raise HTTPException(status_code=404, detail="Arquivo DICOM não encontrado.")
+
+        # Verificação de segurança: Apenas o dono do arquivo pode vê-lo
+        if dicom.professor_id != current_user.professor_id:
+            raise HTTPException(status_code=403, detail="Acesso não permitido a este recurso.")
+
+        return dicom
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
