@@ -28,7 +28,7 @@ async def upload_dicom_file(
         if dicom_meta.professor_id != current_user.professor_id:
             raise HTTPException(status_code=403, detail="Operação não permitida. O professor_id deve ser o do usuário logado.")
             
-        return await service.create_dicom_upload(file, dicom_meta)
+        return await service.create_dicom_upload(file, dicom_meta,current_user.professor_id)
     except IOError as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {e}")
     except Exception as e:
