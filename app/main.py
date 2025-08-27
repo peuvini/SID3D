@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from .dependencies import db
 from config import settings
 
@@ -9,14 +10,33 @@ from app.professor.controller import router as professor_router
 from app.dicom.controller import router as dicom_router
 from app.arquivo3D.controller import router as arquivo3d_router
 
+# --- Gerenciador de Ciclo de Vida (Lifespan) ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Gerencia os eventos de inicialização e desligamento,
+    como a conexão com o banco de dados.
+    """
+    # Código que roda ANTES da aplicação iniciar (antigo "startup")
+    print("INFO:     Conectando ao banco de dados...")
+    await db.connect()
+    
+    yield  # A aplicação fica rodando aqui
+    
+    # Código que roda DEPOIS da aplicação finalizar (antigo "shutdown")
+    print("INFO:     Desconectando do banco de dados...")
+    await db.disconnect()
+
+# --- Instância Principal do App ---
 app = FastAPI(
     title="SID3D API",
     description="Sistema de Impressão 3D - API",
     version="1.0.0",
-    debug=True
+    debug=True,
+    lifespan=lifespan  # Usando o novo gerenciador de ciclo de vida
 )
 
-# Configuração do CORS
+# --- Configuração do CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -25,20 +45,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup():
-    await db.connect()
-
-@app.on_event("shutdown")
-async def shutdown():
-    await db.disconnect()
-
-
+# --- Inclusão de Rotas ---
 app.include_router(auth_router)
 app.include_router(professor_router)
 app.include_router(dicom_router)
 app.include_router(arquivo3d_router)
 
+# --- Endpoints da Raiz ---
 @app.get("/")
 async def root():
     """Endpoint raiz da API"""

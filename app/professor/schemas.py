@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional
 
 class ProfessorBase(BaseModel):
@@ -21,8 +21,9 @@ class ProfessorResponse(ProfessorBase):
     professor_id: int = Field(..., description="ID único do professor")
     created_at: Optional[str] = Field(None, description="Data de criação do registro")
     
-    class Config:
-        from_attributes = True
+    # CORREÇÃO: Substituído 'class Config' pela variável 'model_config'
+    # 'from_attributes=True' é o novo nome para 'orm_mode = True'
+    model_config = ConfigDict(from_attributes=True)
 
 class ProfessorSearch(BaseModel):
     """Schema para busca de professores"""

@@ -47,14 +47,11 @@ class ProfessorService:
     
     async def create_professor(self, professor_data: ProfessorCreate) -> ProfessorResponse:
         """Cria um novo professor."""
-        # Verificar se email já existe
         if await self.repository.email_exists(professor_data.email):
             raise HTTPException(status_code=400, detail="Email já está em uso")
         
-        # Hash da senha
         hashed_password = self.auth_service._hash_password(professor_data.senha)
 
-        # Preparar dados para o banco
         new_professor_data = {
             "Nome": professor_data.nome.strip(),
             "Email": professor_data.email.lower(),
@@ -69,16 +66,13 @@ class ProfessorService:
     
     async def update_professor(self, professor_id: int, professor_data: ProfessorUpdate, current_user_id: Optional[int] = None) -> Optional[ProfessorResponse]:
         """Atualiza um professor existente."""
-        # Verificar se o professor existe
         existing_professor = await self.repository.get_by_id(professor_id)
         if not existing_professor:
             return None
         
-        # Verificar permissão (apenas o próprio professor pode se editar)
         if current_user_id and current_user_id != professor_id:
             raise HTTPException(status_code=403, detail="Você só pode editar seu próprio perfil")
         
-        # Preparar dados para atualização
         update_data = {}
         
         if professor_data.nome is not None:
@@ -86,7 +80,6 @@ class ProfessorService:
         
         if professor_data.email is not None:
             email_lower = professor_data.email.lower()
-            # Verificar se o novo email já está em uso (excluindo o próprio professor)
             if await self.repository.email_exists(email_lower, exclude_id=professor_id):
                 raise HTTPException(status_code=400, detail="Email já está em uso")
             update_data["Email"] = email_lower
@@ -94,7 +87,6 @@ class ProfessorService:
         if professor_data.senha is not None:
             update_data["Senha"] = self.auth_service._hash_password(professor_data.senha)
 
-        # Se nada foi enviado para atualizar
         if not update_data:
             return await self._map_to_response(existing_professor)
 
@@ -106,20 +98,16 @@ class ProfessorService:
     
     async def change_password(self, professor_id: int, password_data: PasswordChangeRequest, current_user_id: int) -> bool:
         """Altera a senha de um professor."""
-        # Verificar permissão
         if current_user_id != professor_id:
             raise HTTPException(status_code=403, detail="Você só pode alterar sua própria senha")
         
-        # Verificar se o professor existe
         professor = await self.repository.get_by_id(professor_id)
         if not professor:
             raise HTTPException(status_code=404, detail="Professor não encontrado")
         
-        # Verificar senha atual
         if not self.auth_service._verify_password(password_data.senha_atual, professor.Senha):
             raise HTTPException(status_code=400, detail="Senha atual incorreta")
         
-        # Atualizar senha
         hashed_new_password = self.auth_service._hash_password(password_data.nova_senha)
         
         try:
@@ -130,12 +118,10 @@ class ProfessorService:
     
     async def delete_professor(self, professor_id: int, current_user_id: int) -> bool:
         """Deleta um professor."""
-        # Verificar se o professor existe
         professor = await self.repository.get_by_id(professor_id)
         if not professor:
             return False
         
-        # Verificar permissão (apenas o próprio professor pode se deletar)
         if current_user_id != professor_id:
             raise HTTPException(status_code=403, detail="Você só pode deletar seu próprio perfil")
         

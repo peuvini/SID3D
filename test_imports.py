@@ -43,20 +43,33 @@ def test_imports():
         from app.main import app
         
         print("🎉 Todas as importações funcionaram!")
-        return True
+        # CORREÇÃO: Usamos 'assert True' para indicar sucesso ao pytest.
+        assert True
         
     except ImportError as e:
         print(f"❌ Erro de importação: {e}")
-        return False
+        # CORREÇÃO: Usamos 'assert False' com uma mensagem para indicar falha ao pytest.
+        assert False, f"Erro de importação: {e}"
     except Exception as e:
         print(f"❌ Erro inesperado: {e}")
-        return False
+        # CORREÇÃO: Usamos 'assert False' com uma mensagem para indicar falha ao pytest.
+        assert False, f"Erro inesperado: {e}"
 
 
 if __name__ == "__main__":
-    success = test_imports()
+    # Esta função é para executar o script diretamente, não via pytest.
+    # Ela não precisa de 'assert'.
+    def run_check():
+        try:
+            test_imports()
+            # Se o assert não falhou, significa sucesso.
+            return True
+        except AssertionError:
+            return False
+
+    success = run_check()
     if success:
         print("\n🚀 O projeto está pronto para ser executado!")
         print("Execute: python run.py")
     else:
-        print("\n❌ Há problemas que precisam ser resolvidos.") 
+        print("\n❌ Há problemas que precisam ser resolvidos.")
