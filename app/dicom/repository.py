@@ -19,9 +19,6 @@ class DICOMRepository:
         return await self.db.dicom.find_many(
             where={
             "professor_id": professor_id,
-            "s3_urls": {
-                "not": ""
-            }
             },
         )
 
