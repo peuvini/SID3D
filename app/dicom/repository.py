@@ -12,13 +12,7 @@ class DICOMRepository:
 
     async def get_all_dicoms(self) -> List[DicomModel]:
         """Retorna todos os registros DICOM."""
-        return await self.db.dicom.find_many(
-            where={
-            "s3_urls": {
-                "not": ""
-            }
-            },
-        )
+        return await self.db.dicom.find_many()
     
     async def get_dicoms_by_professor_id(self, professor_id: int) -> List[DicomModel]:
         """Retorna todos os DICOMs de um professor específico."""
@@ -42,11 +36,7 @@ class DICOMRepository:
         """Retorna todos os DICOMs de um professor específico."""
         return await self.db.dicom.find_many(
             where={
-            "professor_id": professor_id,
-            "s3_urls": {"not": None}
-            },
-            include={'Professor': True, 'Arquivo3D': True}
-        )
+            "professor_id": professor_id },)
 
     async def find_dicoms(self, search_criteria: dict) -> List[DicomModel]:
         """Encontra registros DICOM com base em critérios de busca."""
