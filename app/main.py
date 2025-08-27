@@ -12,7 +12,8 @@ from app.arquivo3D.controller import router as arquivo3d_router
 app = FastAPI(
     title="SID3D API",
     description="Sistema de Impressão 3D - API",
-    version="1.0.0"
+    version="1.0.0",
+    debug=True
 )
 
 # Configuração do CORS
