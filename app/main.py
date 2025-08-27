@@ -17,13 +17,11 @@ async def lifespan(app: FastAPI):
     Gerencia os eventos de inicialização e desligamento,
     como a conexão com o banco de dados.
     """
-    # Código que roda ANTES da aplicação iniciar (antigo "startup")
     print("INFO:     Conectando ao banco de dados...")
     await db.connect()
     
-    yield  # A aplicação fica rodando aqui
+    yield  
     
-    # Código que roda DEPOIS da aplicação finalizar (antigo "shutdown")
     print("INFO:     Desconectando do banco de dados...")
     await db.disconnect()
 

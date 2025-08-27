@@ -25,8 +25,6 @@ def mock_auth_service():
     auth_mock = AsyncMock()
     auth_mock._hash_password.return_value = "senha_com_hash"
     
-    # CORREÇÃO: O seu código de serviço chama _verify_password de forma SÍNCRONA.
-    # Portanto, substituímos o método assíncrono padrão do mock por um MagicMock SÍNCRONO.
     auth_mock._verify_password = MagicMock(return_value=True)
     return auth_mock
 
