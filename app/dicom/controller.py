@@ -16,7 +16,6 @@ router = APIRouter(prefix="/dicom", tags=["DICOM"])
 async def upload_dicom_file(
     nome: str = File(...),
     paciente: str = File(...),
-    professor_id: int = File(...),
     files: List[UploadFile] = File(...),
     service: DICOMService = Depends(get_dicom_service),
     current_user: UserResponse = Depends(get_current_user),
@@ -26,11 +25,8 @@ async def upload_dicom_file(
     O professor logado é associado automaticamente.
     """
     try:
-        # Garante que o ID do professor no DTO corresponda ao usuário logado
-        if professor_id != current_user.professor_id:
-            raise HTTPException(status_code=403, detail="Operação não permitida. O professor_id deve ser o do usuário logado.")
-
-        dicom_meta = DICOMCreate(nome=nome, paciente=paciente, professor_id=professor_id)
+        
+        dicom_meta = DICOMCreate(nome=nome, paciente=paciente, professor_id=current_user.professor_id)
         return await service.create_dicom_upload(files, dicom_meta, current_user.professor_id)
     except IOError as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {e}")
