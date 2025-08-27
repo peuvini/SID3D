@@ -51,46 +51,25 @@ class DICOMService:
         if not files:
             raise HTTPException(status_code=400, detail="Pelo menos um arquivo deve ser enviado")
 
-        # 1. Cria registro DICOM no banco (inicialmente sem URLs)
-        db_data = {
-            "nome": dicom_data.nome,
-            "paciente": dicom_data.paciente,
-            "professor_id": user_id,
-            "s3_urls": []  # Array vazio inicialmente
-        }
-        
-        new_dicom = await self.repository.create_dicom(db_data)
-        dicom_id = new_dicom.id
-
-        # 2. Faz upload dos arquivos para o S3
         uploaded_urls = []
         try:
             async with await self._get_s3_client() as s3_client:
                 for i, file in enumerate(files):
-                    # Valida o arquivo
                     if not file.filename:
                         continue
-                        
                     file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'dcm'
-                    object_key = f"dicom-files/{user_id}/{dicom_id}/{uuid4()}.{file_extension}"
-                    
-                    # Lê o conteúdo do arquivo
+                    object_key = f"dicom-files/{user_id}/{uuid4()}.{file_extension}"
                     await file.seek(0)
                     content = await file.read()
-                    
                     if not content:
                         continue
-                    
-                    # Upload para S3
                     await s3_client.put_object(
                         Bucket=S3_BUCKET_NAME,
                         Key=object_key,
                         Body=content,
                         ContentType=file.content_type or 'application/octet-stream'
                     )
-                    
                     uploaded_urls.append(object_key)
-                    
         except Exception as e:
             # Se falhar, tenta limpar os arquivos já enviados
             try:
@@ -99,15 +78,17 @@ class DICOMService:
                 pass
             raise HTTPException(status_code=500, detail=f"Falha no upload para o S3: {str(e)}")
 
-        # 3. Atualiza o registro com as URLs dos arquivos
-        if uploaded_urls:
-            await self.repository.update_dicom_urls(dicom_id, uploaded_urls)
-            new_dicom.s3_urls = uploaded_urls
-        else:
-            # Se nenhum arquivo foi enviado com sucesso, remove o registro
-            await self.repository.delete_dicom(dicom_id)
+        if not uploaded_urls:
             raise HTTPException(status_code=400, detail="Nenhum arquivo válido foi processado")
 
+        # Cria registro DICOM no banco apenas se o upload foi bem-sucedido
+        db_data = {
+            "nome": dicom_data.nome,
+            "paciente": dicom_data.paciente,
+            "professor_id": user_id,
+            "s3_urls": uploaded_urls
+        }
+        new_dicom = await self.repository.create_dicom(db_data)
         return await self._map_to_response(new_dicom)
 
     async def _cleanup_s3_files(self, object_keys: List[str]) -> None:
