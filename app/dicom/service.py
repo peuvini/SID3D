@@ -217,7 +217,7 @@ class DICOMService:
         deleted_record = await self.repository.delete_dicom(dicom_id)
         return deleted_record is not None
 
-    async def get_all_dicoms(self, current_user_id: Optional[int] = None) -> List[DICOMResponse]:
+    async def get_dicoms_by_professor_id(self, current_user_id: Optional[int] = None) -> List[DICOMResponse]:
         """
         Retorna todos os registros DICOM.
         
