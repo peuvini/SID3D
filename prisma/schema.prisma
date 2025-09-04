@@ -8,74 +8,74 @@ datasource db {
 }
 
 model Professor {
-  id          Int      @id @default(autoincrement())
-  nome        String
-  email       String   @unique
-  password    String
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  nome       String
+  email      String   @unique
+  password   String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  DICOMs      DICOM[]
+  DICOMs DICOM[]
 
   @@map("professor")
 }
 
 model DICOM {
-  id            Int         @id @default(autoincrement())
-  paciente      String?
-  s3_urls       String[]    @map("s3_urls")
-  nome          String?
-  professor_id  Int         @map("professor_id")
-  created_at    DateTime    @default(now())
-  updated_at    DateTime    @updatedAt
+  id                  Int      @id @default(autoincrement())
+  paciente            String?
+  s3_urls             String[] @map("s3_urls")
+  nome                String?
+  professor_id        Int      @map("professor_id")
+  dicom_image_preview String?  @map("dicom_image_preview")
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
-  Professor     Professor   @relation(fields: [professor_id], references: [id])
-  Arquivo3D     Arquivo3D[]
+  Professor Professor   @relation(fields: [professor_id], references: [id])
+  Arquivo3D Arquivo3D[]
 
   @@map("dicom")
 }
 
 model Arquivo3D {
-  id           Int         @id @default(autoincrement())
-  dicom_id     Int         @map("dicom_id")
-  file_format  String      @map("file_format")
-  file_size    Int?        @map("file_size")
-  s3_url       String      @map("s3_url")
-  created_at   DateTime    @default(now())
-  updated_at   DateTime    @updatedAt
+  id          Int      @id @default(autoincrement())
+  dicom_id    Int      @map("dicom_id")
+  file_format String   @map("file_format")
+  file_size   Int?     @map("file_size")
+  s3_url      String   @map("s3_url")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
-  DICOM        DICOM       @relation(fields: [dicom_id], references: [id], onDelete: Cascade)
-  Impressao3D  Impressao3D[]
+  DICOM       DICOM         @relation(fields: [dicom_id], references: [id], onDelete: Cascade)
+  Impressao3D Impressao3D[]
 
   @@map("arquivo3d")
 }
 
 model Impressora {
-  id              Int         @id @default(autoincrement())
-  nome            String
-  modelo          String
-  status          String      @default("disponivel")
-  created_at      DateTime    @default(now())
-  updated_at      DateTime    @updatedAt
+  id         Int      @id @default(autoincrement())
+  nome       String
+  modelo     String
+  status     String   @default("disponivel")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  Impressao3D     Impressao3D[]
+  Impressao3D Impressao3D[]
 
   @@map("impressora")
 }
 
 model Impressao3D {
-  id               Int         @id @default(autoincrement())
-  data_inicio      DateTime    @map("data_inicio")
-  data_conclusao   DateTime?   @map("data_conclusao")
-  arquivo3d_id     Int         @map("arquivo3d_id")
-  impressora_id    Int         @map("impressora_id")
-  status           String      @default("pendente")
-  created_at       DateTime    @default(now())
-  updated_at       DateTime    @updatedAt
+  id             Int       @id @default(autoincrement())
+  data_inicio    DateTime  @map("data_inicio")
+  data_conclusao DateTime? @map("data_conclusao")
+  arquivo3d_id   Int       @map("arquivo3d_id")
+  impressora_id  Int       @map("impressora_id")
+  status         String    @default("pendente")
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
 
-  Arquivo3D        Arquivo3D   @relation(fields: [arquivo3d_id], references: [id], onDelete: Cascade)
-  Impressora       Impressora  @relation(fields: [impressora_id], references: [id])
+  Arquivo3D  Arquivo3D  @relation(fields: [arquivo3d_id], references: [id], onDelete: Cascade)
+  Impressora Impressora @relation(fields: [impressora_id], references: [id])
 
   @@map("impressao3d")
 }
-

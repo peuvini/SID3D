@@ -7,6 +7,7 @@ from config import settings
 
 from .repository import DICOMRepository
 from .schemas import DICOMCreate, DICOMResponse, DICOMSearch, DICOMUpdate
+from ..utils.dicom_processor import extract_dicom_preview
 
 S3_BUCKET_NAME = settings.S3_BUCKET_NAME
 AWS_REGION = settings.AWS_REGION
@@ -31,6 +32,7 @@ class DICOMService:
             paciente=dicom_model.paciente,
             professor_id=dicom_model.professor_id,
             s3_urls=dicom_model.s3_urls or [],
+            dicom_image_preview=dicom_model.dicom_image_preview,
             created_at=dicom_model.created_at,
             updated_at=dicom_model.updated_at
         )
@@ -52,6 +54,8 @@ class DICOMService:
             raise HTTPException(status_code=400, detail="Pelo menos um arquivo deve ser enviado")
 
         uploaded_urls = []
+        preview_url = None
+        
         try:
             async with await self._get_s3_client() as s3_client:
                 for i, file in enumerate(files):
@@ -70,10 +74,30 @@ class DICOMService:
                         ContentType=file.content_type or 'application/octet-stream'
                     )
                     uploaded_urls.append(object_key)
+                    
+                    # Extrai preview apenas do primeiro arquivo DICOM válido
+                    if preview_url is None and i == 0:
+                        try:
+                            preview_image = extract_dicom_preview(content)
+                            if preview_image:
+                                preview_key = f"dicom-previews/{user_id}/{uuid4()}.png"
+                                await s3_client.put_object(
+                                    Bucket=S3_BUCKET_NAME,
+                                    Key=preview_key,
+                                    Body=preview_image,
+                                    ContentType='image/png'
+                                )
+                                preview_url = preview_key
+                        except Exception as e:
+                            print(f"Erro ao extrair preview do DICOM: {e}")
+                            # Continua o processo mesmo se falhar a extração do preview
+                            
         except Exception as e:
             # Se falhar, tenta limpar os arquivos já enviados
             try:
                 await self._cleanup_s3_files(uploaded_urls)
+                if preview_url:
+                    await self._cleanup_s3_files([preview_url])
             except:
                 pass
             raise HTTPException(status_code=500, detail=f"Falha no upload para o S3: {str(e)}")
@@ -86,7 +110,8 @@ class DICOMService:
             "nome": dicom_data.nome,
             "paciente": dicom_data.paciente,
             "professor_id": user_id,
-            "s3_urls": uploaded_urls
+            "s3_urls": uploaded_urls,
+            "dicom_image_preview": preview_url
         }
         new_dicom = await self.repository.create_dicom(db_data)
         return await self._map_to_response(new_dicom)
@@ -252,3 +277,107 @@ class DICOMService:
         """
         dicom = await self.repository.get_dicom_by_id(dicom_id)
         return await self._map_to_response(dicom) if dicom else None
+
+    async def get_dicom_preview_image(self, dicom_id: int) -> Optional[bytes]:
+        """
+        Faz download da imagem de preview de um DICOM do S3.
+        
+        Args:
+            dicom_id: ID do registro DICOM
+            
+        Returns:
+            Bytes da imagem de preview ou None se não encontrado
+        """
+        try:
+            # Buscar o registro DICOM
+            dicom = await self.repository.get_dicom_by_id(dicom_id)
+            if not dicom or not dicom.dicom_image_preview:
+                return None
+            
+            # Fazer download do S3
+            async with await self._get_s3_client() as s3_client:
+                response = await s3_client.get_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=dicom.dicom_image_preview
+                )
+                
+                # Ler o conteúdo da imagem
+                image_data = await response['Body'].read()
+                return image_data
+                
+        except Exception as e:
+            print(f"Erro ao fazer download da imagem de preview: {e}")
+            return None
+
+    async def get_dicom_preview_download_url(self, dicom_id: int) -> Optional[str]:
+        """
+        Gera uma URL pré-assinada para download da imagem de preview de um DICOM.
+        
+        Args:
+            dicom_id: ID do registro DICOM
+            
+        Returns:
+            URL pré-assinada ou None se não encontrado
+        """
+        try:
+            # Buscar o registro DICOM
+            dicom = await self.repository.get_dicom_by_id(dicom_id)
+            if not dicom or not dicom.dicom_image_preview:
+                return None
+            
+            # Gerar URL pré-assinada
+            async with await self._get_s3_client() as s3_client:
+                download_url = await s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': S3_BUCKET_NAME,
+                        'Key': dicom.dicom_image_preview
+                    },
+                    ExpiresIn=3600  # URL válida por 1 hora
+                )
+                return download_url
+                
+        except Exception as e:
+            print(f"Erro ao gerar URL de download da imagem de preview: {e}")
+            return None
+
+    async def get_dicom_file_by_id(self, dicom_id: int) -> Optional[tuple]:
+        """
+        Retorna informações de um arquivo DICOM para download.
+        
+        Args:
+            dicom_id: ID do registro DICOM
+            
+        Returns:
+            Tupla (file_path, filename) ou None se não encontrado
+        """
+        try:
+            # Buscar o registro DICOM
+            dicom = await self.repository.get_dicom_by_id(dicom_id)
+            if not dicom or not dicom.s3_urls:
+                return None
+            
+            # Retornar o primeiro arquivo da lista
+            file_key = dicom.s3_urls[0]
+            
+            # Fazer download temporário do S3
+            async with await self._get_s3_client() as s3_client:
+                response = await s3_client.get_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=file_key
+                )
+                
+                # Salvar temporariamente
+                import tempfile
+                import os
+                
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.dcm')
+                temp_file.write(await response['Body'].read())
+                temp_file.close()
+                
+                filename = os.path.basename(file_key)
+                return (temp_file.name, filename)
+                
+        except Exception as e:
+            print(f"Erro ao obter arquivo DICOM: {e}")
+            return None

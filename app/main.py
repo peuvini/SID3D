@@ -1,6 +1,32 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
+import sys
+import traceback
+
+# Configurar logging detalhado
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('debug.log')
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Configurar exceções não tratadas
+def custom_excepthook(exctype, value, traceback_obj):
+    logger.error("❌ EXCEÇÃO NÃO TRATADA:")
+    logger.error(f"Tipo: {exctype}")
+    logger.error(f"Valor: {value}")
+    logger.error("📋 Stack trace completo:")
+    traceback.print_exception(exctype, value, traceback_obj)
+
+sys.excepthook = custom_excepthook
+
 from .dependencies import db
 from config import settings
 

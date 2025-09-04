@@ -1,10 +1,11 @@
 # app/dicom/controller.py
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import List
+import io
 
-from .schemas import DICOMCreate, DICOMResponse, DICOMSearch
+from .schemas import DICOMCreate, DICOMResponse, DICOMSearch, DICOMPreviewURLResponse
 from .service import DICOMService
 from app.auth.auth_middleware import get_current_user
 from app.auth.auth_schemas import UserResponse
@@ -60,6 +61,92 @@ async def download_dicom_file(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/preview/{dicom_id}")
+async def download_dicom_preview(
+    dicom_id: int,
+    service: DICOMService = Depends(get_dicom_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Endpoint para baixar a imagem de preview de um DICOM.
+    Retorna a imagem diretamente do S3 como stream.
+    """
+    try:
+        # Verificar se o DICOM existe e se o usuário tem acesso
+        dicom = await service.get_dicom_by_id(dicom_id)
+        if not dicom:
+            raise HTTPException(status_code=404, detail="DICOM não encontrado.")
+        
+        # Verificar permissão
+        if dicom.professor_id != current_user.professor_id:
+            raise HTTPException(status_code=403, detail="Acesso não permitido a este recurso.")
+        
+        # Verificar se existe preview
+        if not dicom.dicom_image_preview:
+            raise HTTPException(status_code=404, detail="Imagem de preview não encontrada para este DICOM.")
+        
+        # Fazer download da imagem do S3
+        image_data = await service.get_dicom_preview_image(dicom_id)
+        if not image_data:
+            raise HTTPException(status_code=404, detail="Erro ao carregar imagem de preview.")
+        
+        # Retornar como streaming response
+        return StreamingResponse(
+            io.BytesIO(image_data),
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"inline; filename=preview_{dicom_id}.png",
+                "Cache-Control": "public, max-age=3600"  # Cache por 1 hora
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+
+@router.get("/preview/{dicom_id}/url", response_model=DICOMPreviewURLResponse)
+async def get_dicom_preview_url(
+    dicom_id: int,
+    service: DICOMService = Depends(get_dicom_service),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Endpoint para obter a URL de download da imagem de preview de um DICOM.
+    Retorna uma URL pré-assinada do S3.
+    """
+    try:
+        # Verificar se o DICOM existe e se o usuário tem acesso
+        dicom = await service.get_dicom_by_id(dicom_id)
+        if not dicom:
+            raise HTTPException(status_code=404, detail="DICOM não encontrado.")
+        
+        # Verificar permissão
+        if dicom.professor_id != current_user.professor_id:
+            raise HTTPException(status_code=403, detail="Acesso não permitido a este recurso.")
+        
+        # Verificar se existe preview
+        if not dicom.dicom_image_preview:
+            raise HTTPException(status_code=404, detail="Imagem de preview não encontrada para este DICOM.")
+        
+        # Gerar URL pré-assinada
+        preview_url = await service.get_dicom_preview_download_url(dicom_id)
+        if not preview_url:
+            raise HTTPException(status_code=404, detail="Erro ao gerar URL de preview.")
+        
+        return DICOMPreviewURLResponse(
+            dicom_id=dicom_id,
+            preview_url=preview_url,
+            expires_in=3600  # URL válida por 1 hora
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 
 @router.get("/", response_model=List[DICOMResponse])

@@ -30,6 +30,7 @@ class DICOMResponse(DICOMBase):
     id: int = Field(..., description="ID único do registro DICOM")
     professor_id: int = Field(..., description="ID do professor responsável")
     s3_urls: List[str] = Field(default_factory=list, description="URLs dos arquivos no S3")
+    dicom_image_preview: Optional[str] = Field(None, description="URL da imagem de preview do DICOM no S3")
     created_at: datetime = Field(..., description="Data de criação do registro")
     updated_at: datetime = Field(..., description="Data da última atualização")
 
@@ -39,4 +40,10 @@ class DICOMResponse(DICOMBase):
 class DownloadURLResponse(BaseModel):
     """Schema de resposta para a URL de download pré-assinada."""
     url: str = Field(..., description="URL pré-assinada para download")
+    expires_in: int = Field(default=3600, description="Tempo de expiração em segundos")
+
+class DICOMPreviewURLResponse(BaseModel):
+    """Schema de resposta para a URL de preview do DICOM."""
+    dicom_id: int = Field(..., description="ID do registro DICOM")
+    preview_url: str = Field(..., description="URL pré-assinada para download da imagem de preview")
     expires_in: int = Field(default=3600, description="Tempo de expiração em segundos")
