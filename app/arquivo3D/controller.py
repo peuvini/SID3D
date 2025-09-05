@@ -1,5 +1,6 @@
 # arquivo3D/controller.py
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from typing import List, Optional
@@ -15,25 +16,42 @@ from app.dependencies import get_arquivo3d_service
 
 router = APIRouter(prefix="/arquivo3d", tags=["Arquivo 3D"])
 
-@router.post("/convert", response_model=Arquivo3DResponse, status_code=201)
+@router.post("/convert", status_code=202)
 async def converter_dicom(
     conversion_request: ConversionRequest,
     service: Arquivo3DService = Depends(get_arquivo3d_service),
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Converte uma série DICOM em um arquivo 3D.
+    Inicia a conversão de uma série DICOM em um arquivo 3D em background.
     
     - **dicom_id**: ID do registro DICOM para conversão
     - **file_format**: Formato desejado (STL, OBJ, PLY)
     
-    Inicia o processo de geração, upload e salvamento do arquivo 3D.
+    Retorna imediatamente uma confirmação de que o processo foi iniciado.
+    O arquivo será processado em background.
     """
     try:
-        return await service.converter_dicom_para_3d(
-            conversion_request, 
-            current_user.professor_id
+        # Validar se o DICOM existe e se o usuário tem permissão
+        dicom_record = await service.dicom_repository.get_dicom_by_id(conversion_request.dicom_id)
+        if not dicom_record:
+            raise HTTPException(status_code=404, detail="Registro DICOM não encontrado")
+
+        if dicom_record.professor_id != current_user.professor_id:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para converter este DICOM")
+
+        # Iniciar a conversão em background (fire and forget)
+        asyncio.create_task(
+            service.converter_dicom_para_3d(conversion_request, current_user.professor_id)
         )
+        
+        return {
+            "message": "Conversão iniciada com sucesso",
+            "dicom_id": conversion_request.dicom_id,
+            "file_format": conversion_request.file_format.value,
+            "status": "processing"
+        }
+        
     except HTTPException:
         raise
     except Exception as e:
