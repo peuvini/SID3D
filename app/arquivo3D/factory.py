@@ -67,34 +67,26 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
                        simplify_target_faces: Optional[int] = None):
         """Permite ajustar os parâmetros de geração antes de executar."""
         if iso_value is not None:
-            print(f"⚙️ [FACTORY] Parâmetro 'iso_value' atualizado para: {iso_value}")
             self.iso_value = iso_value
         if simplify_target_faces is not None:
-            print(f"⚙️ [FACTORY] Parâmetro 'simplify_target_faces' atualizado para: {simplify_target_faces}")
             self.simplify_target_faces = simplify_target_faces
 
     def generate(self, dicom_files_content: List[bytes], file_format: str = "stl") -> bytes:
         """
         Converte arquivos DICOM em uma malha 3D usando marching cubes.
         """
-        print(f"🔧 [FACTORY] Iniciando conversão de {len(dicom_files_content)} arquivos DICOM para {file_format.upper()}")
         
         if not dicom_files_content:
             raise ValueError("Nenhum arquivo DICOM fornecido")
 
         # 1. Processar arquivos DICOM e criar volume 3D
-        print("📊 [FACTORY] Criando volume 3D...")
         volume_3d = self._create_3d_volume(dicom_files_content)
-        print(f"📊 [FACTORY] Volume criado com dimensões: {volume_3d.shape}")
         
         # 2. Extrair superfície usando marching cubes
-        print("🔺 [FACTORY] Extraindo superfície com marching cubes...")
         mesh = self._extract_surface(volume_3d)
-        print(f"🔺 [FACTORY] Malha criada com {len(mesh.vertices)} vértices e {len(mesh.faces)} faces")
         
         # 3. Aplicar pós-processamento
         if self.smooth:
-            print("✨ [FACTORY] Aplicando suavização...")
             mesh = self._smooth_mesh(mesh)
 
         # 3.5 Validar malha e salvar debug se necessário
@@ -105,9 +97,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
             raise ValueError(f"Malha inválida antes da exportação: {e}")
         
         # 4. Exportar no formato desejado
-        print(f"💾 [FACTORY] Exportando para {file_format.upper()}...")
         result = self._export_mesh(mesh, file_format)
-        print(f"✅ [FACTORY] Arquivo gerado com {len(result)} bytes")
         return result
 
     def _create_3d_volume(self, dicom_files_content: List[bytes]) -> np.ndarray:
@@ -215,7 +205,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
                     print(f"⚠️ [FACTORY] Dimensão do pixel_array não suportada: {slice_data.ndim}")
 
             except Exception as e:
-                print(f"❌ [FACTORY] Erro ao processar arquivo DICOM idx={idx}: {e}")
+                print(f"[FACTORY] Erro ao processar arquivo DICOM idx={idx}: {e}")
                 continue
 
         if not slices:
@@ -247,7 +237,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
         # armazenar espaçamento para uso posterior
         self.voxel_spacing = (z_spacing, float(px_spacing[0]), float(px_spacing[1]))
 
-        print(f"✅ [FACTORY] Volume 3D criado com sucesso: {volume_data.shape}, voxel_spacing={self.voxel_spacing}")
+        print(f"[FACTORY] Volume 3D criado: {volume_data.shape}, voxel_spacing={self.voxel_spacing}")
         return volume_data
 
     def _segment_volume(self, volume: np.ndarray) -> Optional[np.ndarray]:
@@ -425,7 +415,6 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
         except Exception:
             stl_path = ""
 
-        print(f"[FACTORY] Debug meshes salvos: ply={ply_path or 'n/a'}, stl={stl_path or 'n/a'}")
         return ply_path, stl_path
 
     def _validate_and_dump_mesh(self, mesh: trimesh.Trimesh) -> None:
@@ -439,7 +428,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
         except Exception:
             raise ValueError("Falha ao ler contagem de vértices/faces da malha")
 
-        print(f"[FACTORY] Validação de malha: vértices={vcount}, faces={fcount}, is_empty={getattr(mesh, 'is_empty', False)}")
+        print(f"[FACTORY] Validação: {vcount} vértices, {fcount} faces")
 
         # Se não tem faces, salvar debug e falhar
         if fcount == 0:
@@ -466,7 +455,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
             iterations = max(0, self.smooth_iterations) # Usar 0 para desabilitar
             
             if iterations > 0:
-                print(f"[FACTORY] Aplicando filter_laplacian por {iterations} iterações...")
+                # Aplicar suavização por filtro Laplaciano
                 mesh = filter_laplacian(mesh, iterations=iterations)
             else:
                 print("[FACTORY] Suavização desabilitada (smooth_iterations = 0).")
@@ -501,9 +490,9 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
             else:
                 out = str(data).encode('utf-8')
 
-            # Checar tamanho mínimo razoável (ex: header apenas pode estar muito pequeno)
+            # Arquivo muito pequeno - pode indicar problema
             if len(out) < 100:
-                print(f"[FACTORY] Aviso: export result muito pequeno ({len(out)} bytes) para formato {file_format}")
+                pass  # Log removido para reduzir verbosidade
             return out
 
         except Exception as e:
@@ -583,7 +572,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
         :param output_format: Formato de saída desejado ('stl', 'obj', 'ply').
         :return: Conteúdo binário da nova malha editada.
         """
-        print(f"⚙️ [FACTORY] Iniciando edição de malha com operação: {operation.upper()}")
+        print(f"[FACTORY] Iniciando edição de malha com operação: {operation.upper()}")
 
         # 1. Carregar a malha original a partir do conteúdo em memória
         try:
@@ -612,7 +601,7 @@ class Arquivo3DFactoryImpl(Arquivo3DAbstractFactory):
             raise ValueError("A operação de edição resultou em uma malha vazia. A área de interesse pode não ter sobreposição com o modelo.")
 
         # 4. Exportar a malha editada para o formato de saída
-        print(f"✅ [FACTORY] Edição concluída. Exportando para {output_format.upper()}...")
+        print(f"[FACTORY] Edição concluída. Exportando para {output_format.upper()}...")
         return self._export_mesh(edited_mesh, output_format)
 
 class Arquivo3DFactoryDummy(Arquivo3DAbstractFactory):

@@ -1,5 +1,6 @@
 # arquivo3D/service.py
 
+import logging
 from typing import List, Optional
 from uuid import uuid4
 from fastapi import HTTPException
@@ -13,6 +14,8 @@ from app.dicom.repository import DICOMRepository
 
 S3_BUCKET_NAME = settings.S3_BUCKET_NAME
 AWS_REGION = settings.AWS_REGION
+
+logger = logging.getLogger(__name__)
 
 class Arquivo3DService:
     def __init__(self, repository: Arquivo3DRepository, dicom_repository: DICOMRepository, generator: Arquivo3DAbstractFactory):

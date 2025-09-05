@@ -9,49 +9,49 @@ def test_imports():
         print("🔍 Testando importações...")
         
         # Testa importações básicas
-        print("✅ Importando FastAPI...")
+        print("[OK] Importando FastAPI...")
         from fastapi import FastAPI
         
-        print("✅ Importando Pydantic...")
+        print("[OK] Importando Pydantic...")
         from pydantic import BaseModel
         
-        print("✅ Importando configurações...")
+        print("[OK] Importando configurações...")
         from config import settings
         
-        print("✅ Importando auth service...")
+        print("[OK] Importando auth service...")
         from app.auth.auth_service import AuthService
         
-        print("✅ Importando auth schemas...")
+        print("[OK] Importando auth schemas...")
         from app.auth.auth_schemas import LoginRequest, RegisterRequest
         
-        print("✅ Importando auth controller...")
+        print("[OK] Importando auth controller...")
         from app.auth.auth_controller import router as auth_router
         
-        print("✅ Importando auth middleware...")
+        print("[OK] Importando auth middleware...")
         from app.auth.auth_middleware import require_auth
         
-        print("✅ Importando professor schemas...")
+        print("[OK] Importando professor schemas...")
         from app.professor.schemas import ProfessorCreate, ProfessorResponse
         
-        print("✅ Importando professor service...")
+        print("[OK] Importando professor service...")
         from app.professor.service import ProfessorService
         
-        print("✅ Importando professor controller...")
+        print("[OK] Importando professor controller...")
         from app.professor.controller import router as professor_router
         
-        print("✅ Importando main app...")
+        print("[OK] Importando main app...")
         from app.main import app
         
-        print("🎉 Todas as importações funcionaram!")
+        print("[SUCESSO] Todas as importações funcionaram!")
         # CORREÇÃO: Usamos 'assert True' para indicar sucesso ao pytest.
         assert True
         
     except ImportError as e:
-        print(f"❌ Erro de importação: {e}")
+        print(f"[ERRO] Erro de importação: {e}")
         # CORREÇÃO: Usamos 'assert False' com uma mensagem para indicar falha ao pytest.
         assert False, f"Erro de importação: {e}"
     except Exception as e:
-        print(f"❌ Erro inesperado: {e}")
+        print(f"[ERRO] Erro inesperado: {e}")
         # CORREÇÃO: Usamos 'assert False' com uma mensagem para indicar falha ao pytest.
         assert False, f"Erro inesperado: {e}"
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     success = run_check()
     if success:
-        print("\n🚀 O projeto está pronto para ser executado!")
+        print("\n[SUCESSO] O projeto está pronto para ser executado!")
         print("Execute: python run.py")
     else:
-        print("\n❌ Há problemas que precisam ser resolvidos.")
+        print("\n[ERRO] Há problemas que precisam ser resolvidos.")

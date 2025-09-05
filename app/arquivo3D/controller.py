@@ -1,6 +1,7 @@
 # arquivo3D/controller.py
 
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from typing import List, Optional
@@ -14,7 +15,19 @@ from app.auth.auth_middleware import get_current_user
 from app.auth.auth_schemas import UserResponse
 from app.dependencies import get_arquivo3d_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/arquivo3d", tags=["Arquivo 3D"])
+
+
+async def _safe_conversion_task(service: Arquivo3DService, conversion_request: ConversionRequest, user_id: int):
+    """Executa a conversão de forma segura, capturando erros."""
+    try:
+        result = await service.converter_dicom_para_3d(conversion_request, user_id)
+        logger.info(f"Conversão DICOM {conversion_request.dicom_id} concluída")
+        return result
+    except Exception as e:
+        logger.error(f"Erro conversão DICOM {conversion_request.dicom_id}: {str(e)}")
+        return None
 
 @router.post("/convert", status_code=202)
 async def converter_dicom(
@@ -40,9 +53,9 @@ async def converter_dicom(
         if dicom_record.professor_id != current_user.professor_id:
             raise HTTPException(status_code=403, detail="Você não tem permissão para converter este DICOM")
 
-        # Iniciar a conversão em background (fire and forget)
+        # Iniciar a conversão em background
         asyncio.create_task(
-            service.converter_dicom_para_3d(conversion_request, current_user.professor_id)
+            _safe_conversion_task(service, conversion_request, current_user.professor_id)
         )
         
         return {

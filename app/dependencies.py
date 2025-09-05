@@ -22,7 +22,7 @@ auth_service = AuthService()
 try:
     # Tenta usar a implementação real
     arquivo3d_factory = Arquivo3DFactoryImpl(iso_value=100.0, smooth=True)
-    print("✅ Usando Arquivo3DFactoryImpl (implementação real)")
+    print("[DEPENDENCIES] Usando Arquivo3DFactoryImpl (implementação real)")
 except ImportError as e:
     # Fallback para implementação dummy se bibliotecas não estiverem disponíveis
     arquivo3d_factory = Arquivo3DFactoryDummy()
