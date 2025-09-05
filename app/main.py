@@ -57,7 +57,8 @@ app = FastAPI(
     description="Sistema de Impressão 3D - API",
     version="1.0.0",
     debug=True,
-    lifespan=lifespan  # Usando o novo gerenciador de ciclo de vida
+    lifespan=lifespan,
+    redirect_slashes=False
 )
 
 # --- Configuração do CORS ---
