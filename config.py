@@ -26,6 +26,11 @@ class Settings:
         self.ALLOWED_ORIGINS: List[str] = [
             origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")
         ]
+        
+        # Hosts permitidos para produção
+        self.ALLOWED_HOSTS: List[str] = [
+            host.strip() for host in os.getenv("ALLOWED_HOSTS", "*").split(",")
+        ]
 
         # S3
         self.S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME")

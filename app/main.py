@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from contextlib import asynccontextmanager
 import logging
 import sys
@@ -30,6 +34,21 @@ sys.excepthook = custom_excepthook
 from .dependencies import db
 from config import settings
 
+# Middleware customizado para headers de segurança
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Headers de segurança para produção
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            
+        return response
+
 # ---  ROUTERS  ---
 from app.auth.auth_controller import router as auth_router
 from app.professor.controller import router as professor_router
@@ -57,8 +76,22 @@ app = FastAPI(
     description="Sistema de Impressão 3D - API",
     version="1.0.0",
     debug=True,
-    lifespan=lifespan,
-    redirect_slashes=False
+    lifespan=lifespan  # Usando o novo gerenciador de ciclo de vida
+)
+
+# --- Configuração dos Middlewares de Segurança ---
+
+# Headers de segurança
+app.add_middleware(SecurityHeadersMiddleware)
+
+# HTTPS Redirect - força HTTPS em produção
+if not settings.DEBUG:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+# Trusted Host - protege contra ataques de Host header
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.ALLOWED_HOSTS
 )
 
 # --- Configuração do CORS ---
