@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y \
     openssl \
     && pip install --no-cache-dir -r requirements.txt \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
 COPY . .
 RUN prisma generate
 RUN prisma db push
