@@ -23,7 +23,7 @@ Sistema completo para autenticação, gerenciamento de professores e manipulaç�
 
 1. **Clone o repositório**:
    ```bash
-   git clone <seu-repositorio>
+   git clone [https://github.com/peuvini/SID3D.git](https://github.com/peuvini/SID3D.git)
    cd SID3D
    ```
 
