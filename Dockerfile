@@ -11,7 +11,9 @@ ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 
 COPY . .
-RUN prisma generate
-RUN prisma db push
-EXPOSE 8000
-CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Criar arquivo de log com permissões corretas
+RUN touch debug.log && chmod 666 debug.log
+
+EXPOSE 8080
+CMD ["python", "run.py"]

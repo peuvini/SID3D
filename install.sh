@@ -66,6 +66,7 @@ fi
 echo ""
 echo "🔧 Configurando Prisma..."
 prisma generate
+prisma db push
 
 echo ""
 echo "🎉 Setup concluído! Execute 'python run.py' para iniciar o servidor." 

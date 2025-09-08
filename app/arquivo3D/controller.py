@@ -29,47 +29,31 @@ async def _safe_conversion_task(service: Arquivo3DService, conversion_request: C
         logger.error(f"Erro conversão DICOM {conversion_request.dicom_id}: {str(e)}")
         return None
 
-@router.post("/convert", status_code=202)
+@router.post("/convert", response_model=Arquivo3DResponse, status_code=201)
 async def converter_dicom(
     conversion_request: ConversionRequest,
     service: Arquivo3DService = Depends(get_arquivo3d_service),
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Inicia a conversão de uma série DICOM em um arquivo 3D em background.
+    Converte uma série DICOM em um arquivo 3D.
     
     - **dicom_id**: ID do registro DICOM para conversão
     - **file_format**: Formato desejado (STL, OBJ, PLY)
     
-    Retorna imediatamente uma confirmação de que o processo foi iniciado.
-    O arquivo será processado em background.
+    Inicia o processo de geração, upload e salvamento do arquivo 3D.
     """
     try:
-        # Validar se o DICOM existe e se o usuário tem permissão
-        dicom_record = await service.dicom_repository.get_dicom_by_id(conversion_request.dicom_id)
-        if not dicom_record:
-            raise HTTPException(status_code=404, detail="Registro DICOM não encontrado")
-
-        if dicom_record.professor_id != current_user.professor_id:
-            raise HTTPException(status_code=403, detail="Você não tem permissão para converter este DICOM")
-
-        # Iniciar a conversão em background
-        asyncio.create_task(
-            _safe_conversion_task(service, conversion_request, current_user.professor_id)
+        return await service.converter_dicom_para_3d(
+            conversion_request, 
+            current_user.professor_id
         )
-        
-        return {
-            "message": "Conversão iniciada com sucesso",
-            "dicom_id": conversion_request.dicom_id,
-            "file_format": conversion_request.file_format.value,
-            "status": "processing"
-        }
-        
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
+        
 @router.get("/", response_model=List[Arquivo3DResponse])
 async def get_all_files(
     only_mine: bool = Query(False, description="Mostrar apenas meus arquivos 3D"),

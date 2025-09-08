@@ -82,6 +82,7 @@ class Arquivo3DService:
             
         return object_key
 
+    
     async def converter_dicom_para_3d(self, conversion_request: ConversionRequest, user_id: int) -> Arquivo3DResponse:
         """Converte DICOMs para um arquivo 3D, faz upload e salva metadados."""
         dicom_id = conversion_request.dicom_id
@@ -127,10 +128,13 @@ class Arquivo3DService:
             "file_format": file_format.value,
             "file_size": len(file_3d_content)
         }
+        try:
+            novo_arquivo_3d = await self.repository.create(db_data)
+            return await self._map_to_response(novo_arquivo_3d)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro ao salvar metadados no banco de dados: {str(e)}")
 
-        novo_arquivo_3d = await self.repository.create(db_data)
-        return await self._map_to_response(novo_arquivo_3d)
-
+    
     async def get_download_url(self, arquivo_id: int, current_user_id: int) -> Optional[str]:
         """
         Gera URL pré-assinada para download de um arquivo 3D.
